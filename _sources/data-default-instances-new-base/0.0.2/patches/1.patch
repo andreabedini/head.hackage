@@ -1,0 +1,26 @@
+diff --git a/src/Data/Default/Instances/Base/New.hs b/src/Data/Default/Instances/Base/New.hs
+index 52b0a28..a1feb23 100644
+--- a/src/Data/Default/Instances/Base/New.hs
++++ b/src/Data/Default/Instances/Base/New.hs
+@@ -52,7 +52,9 @@ import Data.Maybe (Maybe(Nothing))
+ import Data.Semigroup
+     ( Min
+     , Max
++# if !(MIN_VERSION_base(4,16,0))
+     , Option(Option)
++# endif
+     )
+ #else
+ import Control.Applicative (Const(Const))
+@@ -127,9 +129,11 @@ instance Bounded a => Default (Min a) where
+ instance Bounded a => Default (Max a) where
+     def = maxBound
+ 
++# if !(MIN_VERSION_base(4,16,0))
+ -- | @'def' = 'Option' 'Nothing'@
+ instance Default (Option a) where
+     def = Option Nothing
++# endif
+ #endif
+ 
+ -- $providedInstances

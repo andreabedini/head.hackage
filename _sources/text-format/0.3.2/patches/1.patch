@@ -1,0 +1,29 @@
+diff --git a/Data/Text/Format/Int.hs b/Data/Text/Format/Int.hs
+index 4bc92bb..c980131 100644
+--- a/Data/Text/Format/Int.hs
++++ b/Data/Text/Format/Int.hs
+@@ -23,7 +23,11 @@ import Data.Text.Format.Functions (i2d)
+ import Data.Text.Lazy.Builder
+ import Data.Word (Word, Word8, Word16, Word32, Word64)
+ import GHC.Base (quotInt, remInt)
++#ifdef  __GLASGOW_HASKELL__
++# if __GLASGOW_HASKELL__ < 900
+ import GHC.Num (quotRemInteger)
++#endif
++#endif
+ import GHC.Types (Int(..))
+ 
+ #ifdef  __GLASGOW_HASKELL__
+diff --git a/text-format.cabal b/text-format.cabal
+index edee4ee..7be9332 100644
+--- a/text-format.cabal
++++ b/text-format.cabal
+@@ -53,7 +53,7 @@ library
+ 
+   build-depends:
+     array,
+-    base >=4.3 && <4.12,
++    base >=4.3 && <4.16,
+     integer-gmp >= 0.2,
+     double-conversion >= 0.2.0.0,
+     ghc-prim,

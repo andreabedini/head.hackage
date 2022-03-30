@@ -1,0 +1,81 @@
+diff --git a/Data/CritBit/Set.hs b/Data/CritBit/Set.hs
+index 0039925..4a4ffc4 100644
+--- a/Data/CritBit/Set.hs
++++ b/Data/CritBit/Set.hs
+@@ -90,6 +90,7 @@ import Data.CritBit.Types.Internal (CritBit(..), Set(..), CritBitKey, Node(..))
+ import Data.Foldable (Foldable, foldMap)
+ import Data.Maybe (isJust)
+ import Data.Monoid (Monoid(..))
++import Data.Semigroup (Semigroup(..))
+ import Prelude hiding (null, filter, map, foldl, foldr)
+ import qualified Data.CritBit.Tree as T
+ import qualified Data.List as List
+@@ -97,9 +98,12 @@ import qualified Data.List as List
+ instance (Show a) => Show (Set a) where
+     show s = "fromList " ++ show (toList s)
+ 
++instance CritBitKey k => Semigroup (Set k) where
++    (<>) = union
++
+ instance CritBitKey k => Monoid (Set k) where
+     mempty  = empty
+-    mappend = union
++    mappend = (<>)
+     mconcat = unions
+ 
+ instance Foldable Set where
+diff --git a/Data/CritBit/Tree.hs b/Data/CritBit/Tree.hs
+index e50738b..5eb95fa 100644
+--- a/Data/CritBit/Tree.hs
++++ b/Data/CritBit/Tree.hs
+@@ -153,15 +153,19 @@ import Data.CritBit.Core
+ import Data.CritBit.Types.Internal
+ import Data.Maybe (fromMaybe)
+ import Data.Monoid (Monoid(..))
++import Data.Semigroup (Semigroup(..))
+ import Data.Traversable (Traversable(traverse))
+ import Prelude hiding (foldl, foldr, lookup, null, map, filter)
+ import qualified Data.Array as A
+ import qualified Data.Foldable as Foldable
+ import qualified Data.List as List
+ 
++instance CritBitKey k => Semigroup (CritBit k v) where
++    (<>) = union
++
+ instance CritBitKey k => Monoid (CritBit k v) where
+     mempty  = empty
+-    mappend = union
++    mappend = (<>)
+     mconcat = unions
+ 
+ instance CritBitKey k => Traversable (CritBit k) where
+diff --git a/Data/CritBit/Types/Internal.hs b/Data/CritBit/Types/Internal.hs
+index d278b5a..d537ad6 100644
+--- a/Data/CritBit/Types/Internal.hs
++++ b/Data/CritBit/Types/Internal.hs
+@@ -185,15 +185,25 @@ instance CritBitKey ByteString where
+     {-# INLINE getByte #-}
+ 
+ instance CritBitKey Text where
++#if MIN_VERSION_text(2,0,0)
++    byteCount (Text _ _ len) = len
++#else
+     byteCount (Text _ _ len) = len `shiftL` 1
++#endif
+     {-# INLINE byteCount #-}
+ 
++#if MIN_VERSION_text(2,0,0)
++    getByte (Text arr off len) n
++        | n < len = fromIntegral (T.unsafeIndex arr (off + n)) .|. 256
++        | otherwise = 0
++#else
+     getByte (Text arr off len) n
+         | n < len `shiftL` 1 =
+             let word       = T.unsafeIndex arr (off + (n `shiftR` 1))
+                 byteInWord = (word `shiftR` ((n .&. 1) `shiftL` 3)) .&. 0xff
+             in byteInWord .|. 256
+         | otherwise       = 0
++#endif
+     {-# INLINE getByte #-}
+ 
+ #if WORD_SIZE_IN_BITS == 64

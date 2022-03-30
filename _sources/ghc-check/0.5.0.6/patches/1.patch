@@ -1,0 +1,37 @@
+diff --git a/src/GHC/Check/PackageDb.hs b/src/GHC/Check/PackageDb.hs
+index 98b6fd5..4c06d26 100644
+--- a/src/GHC/Check/PackageDb.hs
++++ b/src/GHC/Check/PackageDb.hs
+@@ -34,7 +34,9 @@ import GHC.Unit.State
+   (lookupUnit, explicitUnits,  lookupUnitId,
+     lookupPackageName, GenericUnitInfo (..),
+     UnitInfo, unitPackageNameString)
+-import GHC.Unit.Types (indefUnit)
++#if !MIN_VERSION_ghc(9,3,0)
++import qualified GHC.Unit.Types as GUT
++#endif
+ #elif MIN_VERSION_ghc(9,0,1)
+ import GHC
+   (unitState,  Ghc,
+@@ -46,7 +48,7 @@ import GHC.Unit.State
+   (lookupUnit, explicitUnits,  lookupUnitId,
+     lookupPackageName, GenericUnitInfo (..),
+     UnitInfo, unitPackageNameString)
+-import GHC.Unit.Types (indefUnit)
++import qualified GHC.Unit.Types as GUT
+ #else
+ import GHC
+   (pkgState,  Ghc,
+@@ -77,6 +79,12 @@ data PackageVersion
+ version :: PackageVersion -> Version
+ version PackageVersion{ myVersion = MyVersion v} = v
+ 
++#if MIN_VERSION_ghc(9,3,0)
++indefUnit = id
++#elif MIN_VERSION_ghc(9,0,1)
++indefUnit = GUT.indefUnit
++#endif
++
+ #if MIN_VERSION_ghc(9,2,0)
+ -- | @getPackageVersion p@ returns the version of package @p@ that will be used in the Ghc session.
+ getPackageVersion :: String -> Ghc (Maybe PackageVersion)

@@ -1,0 +1,99 @@
+diff --git a/ansi-pretty.cabal b/ansi-pretty.cabal
+index 37dffa2..a8ab808 100644
+--- a/ansi-pretty.cabal
++++ b/ansi-pretty.cabal
+@@ -1,10 +1,11 @@
+ name:               ansi-pretty
+ version:            0.1.2.2
++x-revision:         1
+ synopsis:           AnsiPretty for ansi-wl-pprint
+ description:        'AnsiPretty' type class, more colorful than 'Pretty'.
+ category:           User Interfaces, Text
+-homepage:           https://github.com/futurice/haskell-ansi-pretty#readme
+-bug-reports:        https://github.com/futurice/haskell-ansi-pretty/issues
++homepage:           https://github.com/phadej/haskell-ansi-pretty#readme
++bug-reports:        https://github.com/phadej/haskell-ansi-pretty/issues
+ author:             Oleg Grenrus <oleg.grenrus@iki.fi>
+ maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
+ license:            BSD3
+@@ -16,7 +17,8 @@ tested-with:
+    || ==8.2.2
+    || ==8.4.4
+    || ==8.6.5
+-   || ==8.8.1
++   || ==8.8.4
++   || ==8.10.3
+ 
+ build-type:         Simple
+ cabal-version:      >=1.10
+@@ -26,17 +28,17 @@ extra-source-files:
+ 
+ source-repository head
+   type:     git
+-  location: https://github.com/futurice/haskell-ansi-pretty
++  location: https://github.com/phadej/haskell-ansi-pretty
+ 
+ library
+   default-language: Haskell2010
+   hs-source-dirs:   src
+   ghc-options:      -Wall
+   build-depends:
+-      aeson                 >=0.8  && <1.5
++      aeson                 >=0.8  && <2.1
+     , ansi-wl-pprint        >=0.6  && <0.7
+     , array                 >=0.5  && <0.6
+-    , base                  >=4.7  && <4.14
++    , base                  >=4.7  && <4.15
+     , bytestring            >=0.10 && <0.11
+     , containers            >=0.5  && <0.7
+     , generics-sop          >=0.1  && <0.6
+diff --git a/src/Text/PrettyPrint/ANSI/Leijen/AnsiPretty.hs b/src/Text/PrettyPrint/ANSI/Leijen/AnsiPretty.hs
+index 2c8d89f..dcb3a14 100644
+--- a/src/Text/PrettyPrint/ANSI/Leijen/AnsiPretty.hs
++++ b/src/Text/PrettyPrint/ANSI/Leijen/AnsiPretty.hs
+@@ -77,6 +77,10 @@ import qualified Data.Time as Time
+ import qualified Data.Vector as V
+ import qualified Data.Vector.Storable as S
+ import qualified Data.Vector.Unboxed as U
++#if MIN_VERSION_aeson(2,0,0)
++import qualified Data.Aeson.Key as Key
++import qualified Data.Aeson.KeyMap as KeyMap
++#endif
+ 
+ #if !MIN_VERSION_generics_sop(0,2,0)
+ type SListI (a :: k) = SingI a
+@@ -255,7 +259,12 @@ instance AnsiPretty a => AnsiPretty (CommonPrefix a)
+ instance AnsiPretty Aeson.Value where
+     ansiPretty (Aeson.Object o)
+         = encloseSep (dullgreen lbrace) (dullgreen rbrace) (dullgreen comma)
+-        $ fmap f $ HashMap.toList o
++        $ fmap f
++#if MIN_VERSION_aeson(2,0,0)
++        $ KeyMap.toList o
++#else
++        $ HashMap.toList o
++#endif
+       where
+         f (k, v) = dullwhite (ansiPretty k) L.<> blue colon <+> ansiPretty v
+ 
+@@ -272,6 +281,10 @@ instance AnsiPretty Aeson.Value where
+     ansiPretty (Aeson.Bool False) = dullyellow $ string "false"
+     ansiPretty Aeson.Null         = cyan (text "Null")
+ 
++#if MIN_VERSION_aeson(2,0,0)
++instance AnsiPretty Key.Key where ansiPretty = ansiPretty . Key.toText
++#endif
++
+ -- array
+ instance (AnsiPretty i, AnsiPretty e, Array.Ix i) => AnsiPretty (Array.Array i e) where ansiPretty = ansiPrettyMap "Array" . Array.assocs
+ instance (AnsiPretty i, AnsiPretty e, Array.Ix i, Array.IArray Array.UArray e) => AnsiPretty (Array.UArray i e) where ansiPretty = ansiPrettyMap "UArray" . Array.assocs
+@@ -302,7 +315,9 @@ instance AnsiPretty Data.Semigroup.All
+ instance AnsiPretty Any
+ instance AnsiPretty a => AnsiPretty (Sum a)
+ instance AnsiPretty a => AnsiPretty (Product a)
++#if !(MIN_VERSION_base(4,16,0))
+ instance AnsiPretty a => AnsiPretty (Option a)
++#endif
+ instance (AnsiPretty a, AnsiPretty b) => AnsiPretty (Arg a b)
+ 
+ -- scientific

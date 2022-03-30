@@ -1,0 +1,36 @@
+diff --git a/src/Data/Tuple/Unboxed.hs b/src/Data/Tuple/Unboxed.hs
+index c27e1db..49720e2 100644
+--- a/src/Data/Tuple/Unboxed.hs
++++ b/src/Data/Tuple/Unboxed.hs
+@@ -76,7 +76,7 @@
+ -------------------------------------------------------------------------------
+ module Data.Tuple.Unboxed where
+ 
+-import GHC.Prim
++import GHC.Exts
+ 
+ #if WORD_SIZE_IN_BITS >= 32
+ #define INT32 Int#
+diff --git a/src/Data/Tuple/Unboxed/Rep.hs b/src/Data/Tuple/Unboxed/Rep.hs
+index fd4796a..342f784 100644
+--- a/src/Data/Tuple/Unboxed/Rep.hs
++++ b/src/Data/Tuple/Unboxed/Rep.hs
+@@ -12,7 +12,7 @@
+ -- Stability   : experimental
+ -- Portability : non-portable
+ --
+--- This module provides an ad-hoc polymorphic alternative to the functions in 
++-- This module provides an ad-hoc polymorphic alternative to the functions in
+ -- "Data.Tuple.Unboxed". The functions have the same basic signature, but using
+ -- GHC 8.0+ features they are made parametrically polymorphic within each fixed
+ -- representation/calling convention.
+@@ -30,6 +30,9 @@ module Data.Tuple.Unboxed.Rep
+ import Data.Kind
+ import GHC.Prim
+ import GHC.Exts
++#if MIN_VERSION_ghc_prim(0,8,0)
++import GHC.Types (UnliftedRep)
++#endif
+ 
+ #if __GLASGOW_HASKELL__ >= 802
+ type VoidRep = TupleRep '[]

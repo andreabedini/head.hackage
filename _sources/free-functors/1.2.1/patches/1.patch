@@ -1,0 +1,17 @@
+diff --git a/src/Data/Functor/Cofree/Internal.hs b/src/Data/Functor/Cofree/Internal.hs
+index 59cbd36..6ece256 100644
+--- a/src/Data/Functor/Cofree/Internal.hs
++++ b/src/Data/Functor/Cofree/Internal.hs
+@@ -40,7 +40,11 @@ cofreeDeriv cofree = idDeriv {
+   cst = \e -> [| const $e $kExp |], -- Suppress "Defined but not used: ‘k’" warning
+   res = \e -> [| $(pure (ConE cofree)) $kExp $e |],
+   eff = \e -> [| $(pure (ConE cofree)) $kExp <$> $e |],
+-  inp = fmap (\vp -> ConP cofree [kPat, vp])
++  inp = fmap (\vp -> ConP cofree
++#if MIN_VERSION_template_haskell(2,18,0)
++                          []
++#endif
++                          [kPat, vp])
+ }
+ 
+ deriveCofreeInstance' :: Name -> Name -> Name -> Q [Dec]

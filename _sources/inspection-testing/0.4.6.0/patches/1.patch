@@ -1,0 +1,31 @@
+diff --git a/src/Test/Inspection/Plugin.hs b/src/Test/Inspection/Plugin.hs
+index 86aae4d..55b6377 100644
+--- a/src/Test/Inspection/Plugin.hs
++++ b/src/Test/Inspection/Plugin.hs
+@@ -33,6 +33,11 @@ import Outputable
+ import GHC.Types.TyThing
+ #endif
+ 
++#if MIN_VERSION_ghc(9,3,0)
++import GHC.Driver.Config.Diagnostic
++import GHC.Utils.Error (mkMCDiagnostic)
++#endif
++
+ import Test.Inspection (Obligation(..), Property(..), Result(..))
+ import Test.Inspection.Core
+ 
+@@ -323,9 +328,14 @@ proofPass upon_failure report guts = do
+         (True, SkipO0) -> pure guts
+         (_   , _     ) -> do
+             when noopt $ do
++#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
++                let diag_opts = initDiagOpts dflags
++                msg (mkMCDiagnostic diag_opts WarningWithoutFlag)
++#else
+                 warnMsg
+ #if MIN_VERSION_GLASGOW_HASKELL(8,9,0,0)
+                     NoReason
++#endif
+ #endif
+                     $ fsep $ map text
+                     $ words "Test.Inspection: Compilation without -O detected. Expect optimizations to fail."

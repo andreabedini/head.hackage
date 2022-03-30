@@ -1,0 +1,13 @@
+diff --git a/Data/Primitive/MachDeps.hs b/Data/Primitive/MachDeps.hs
+index 3033e23..a702a3d 100644
+--- a/Data/Primitive/MachDeps.hs
++++ b/Data/Primitive/MachDeps.hs
+@@ -113,7 +113,7 @@ aLIGNMENT_INT64 = ALIGNMENT_INT64
+ sIZEOF_WORD64 = SIZEOF_WORD64
+ aLIGNMENT_WORD64 = ALIGNMENT_WORD64
+ 
+-#if WORD_SIZE_IN_BITS == 32
++#if __GLASGOW_HASKELL__ >= 903 || WORD_SIZE_IN_BITS == 32
+ type Word64_# = Word64#
+ type Int64_# = Int64#
+ #else

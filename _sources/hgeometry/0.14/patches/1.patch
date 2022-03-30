@@ -1,0 +1,10 @@
+diff --git a/src/Data/Geometry/RangeTree.hs b/src/Data/Geometry/RangeTree.hs
+index 1aea06f..586bd17 100644
+--- a/src/Data/Geometry/RangeTree.hs
++++ b/src/Data/Geometry/RangeTree.hs
+@@ -1,4 +1,5 @@
+ {-# LANGUAGE UndecidableInstances #-}
++{-# LANGUAGE UndecidableSuperClasses #-}
+ --------------------------------------------------------------------------------
+ -- |
+ -- Module      :  Data.Geometry.RangeTree

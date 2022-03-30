@@ -1,0 +1,145 @@
+diff --git a/src/Data/ArithEncode/Basic.hs b/src/Data/ArithEncode/Basic.hs
+index 31bc695..e6af8ff 100644
+--- a/src/Data/ArithEncode/Basic.hs
++++ b/src/Data/ArithEncode/Basic.hs
+@@ -130,7 +130,7 @@ import Control.Monad
+ import Data.Array.IArray(Array)
+ import Data.Bits
+ import Data.Hashable
+-import Data.List hiding (elem, union)
++import qualified Data.List as L hiding (elem, union)
+ import Data.Maybe
+ import Data.Set(Set)
+ import Data.HashSet(HashSet)
+@@ -354,7 +354,7 @@ wrap :: (a -> Maybe b)
+      -> Encoding b
+      -- ^ The inner encoding.
+      -> Encoding a
+-wrap fwd rev enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
++wrap fwd rev enc@Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                               encInDomain = indomainfunc } =
+   let
+     safefwd val =
+@@ -412,7 +412,7 @@ mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
+ -- @0@.  It is also similar to @mandatory@, except that it does not
+ -- change the base type.
+ nonzero :: Encoding ty -> Encoding ty
+-nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
++nonzero enc@Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                          encSize = sizeval, encInDomain = indomainfunc } =
+   let
+     dec n = n - 1
+@@ -483,14 +483,14 @@ exclude :: [ty]
+         -- ^ The base @Encoding@.
+         -> Encoding ty
+ exclude [] enc = enc
+-exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
++exclude excludes enc@Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                                   encSize = sizeval, encInDomain = indomainfunc } =
+   let
+     forbidden = HashSet.fromList (map encodefunc excludes)
+-    sortedlist = sort (map encodefunc excludes)
++    sortedlist = L.sort (map encodefunc excludes)
+ 
+     fwdoffsets :: [(Integer, Integer)]
+-    (_, fwdoffsets) = mapAccumL (\offset v -> (offset + 1, (v, offset)))
++    (_, fwdoffsets) = L.mapAccumL (\offset v -> (offset + 1, (v, offset)))
+                                 1 sortedlist
+     fwdtree = toBinTree fwdoffsets
+ 
+@@ -499,7 +499,7 @@ exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc
+       let
+         foldfun :: [(Integer, Integer)] -> (Integer, Integer) ->
+                    [(Integer, Integer)]
+-        foldfun accum @ ((v', _) : rest) elem @ (v, _)
++        foldfun accum@((v', _) : rest) elem@(v, _)
+           | v == v' = elem : rest
+           | otherwise = elem : accum
+         foldfun _ _ = error "Should not fold over an empty list"
+@@ -641,7 +641,7 @@ union encodings =
+     sortpair (a, _) (b, _) = sortfunc a b
+ 
+     (sizes, sortedencodings) =
+-      unzip (sortBy sortpair (map (\enc -> (size enc, enc)) encodings))
++      unzip (L.sortBy sortpair (map (\enc -> (size enc, enc)) encodings))
+     -- Turn the sorted element encodings into an array for fast access
+     encodingarr :: Array.Array Int (Encoding ty)
+     encodingarr = Array.listArray (0, numelems - 1) sortedencodings
+@@ -724,7 +724,7 @@ union encodings =
+         _ -> error "Internal error"
+ 
+     encodefunc val =
+-      case findIndex ((flip inDomain) val) sortedencodings of
++      case L.findIndex ((flip inDomain) val) sortedencodings of
+         Just encidx ->
+           let
+             enc = (Array.!) encodingarr encidx
+@@ -813,8 +813,8 @@ mkPairCore Encoding { encEncode = encode1, encDecode = decode1,
+ -- | Take encodings for two datatypes A and B, and build an encoding
+ -- for a pair (A, B).
+ pair :: Encoding ty1 -> Encoding ty2 -> Encoding (ty1, ty2)
+-pair enc1 @ Encoding { encInDomain = indomain1 }
+-     enc2 @ Encoding { encInDomain = indomain2 } =
++pair enc1@Encoding { encInDomain = indomain1 }
++     enc2@Encoding { encInDomain = indomain2 } =
+   let
+     (encodefunc, decodefunc, sizeval) = mkPairCore enc1 enc2
+ 
+@@ -1237,7 +1237,7 @@ seqCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
+ -- Note: This encoding can produce very large numbers for short
+ -- sequences.
+ seq :: Encoding ty -> Encoding [ty]
+-seq enc @ Encoding { encInDomain = indomainfunc } =
++seq enc@Encoding { encInDomain = indomainfunc } =
+   let
+     (newEncode, newDecode) = seqCore enc
+     newInDomain = all indomainfunc
+@@ -1281,7 +1281,7 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
+       in
+         (newencode, newdecode)
+     Just 0 -> (\[] -> 0, \0 -> [])
+-    Just 1 -> (genericLength, flip genericReplicate (decodefunc 0))
++    Just 1 -> (L.genericLength, flip L.genericReplicate (decodefunc 0))
+     Just finitesize ->
+       let
+         newencode [] = 0
+@@ -1324,7 +1324,7 @@ boundedSeq :: Integer
+            -> Encoding ty
+            -- ^ The @Encoding@ for the sequence elements
+            -> Encoding [ty]
+-boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc } =
++boundedSeq len enc@Encoding { encSize = sizeval, encInDomain = indomainfunc } =
+   let
+     (newencode, newdecode) = boundedSeqCore len enc
+     newsize = case len of
+diff --git a/src/Data/ArithEncode/Util.hs b/src/Data/ArithEncode/Util.hs
+index 85577ad..a07ef2e 100644
+--- a/src/Data/ArithEncode/Util.hs
++++ b/src/Data/ArithEncode/Util.hs
+@@ -61,7 +61,7 @@ module Data.ArithEncode.Util(
+ import Control.Exception
+ import Data.ArithEncode.Basic
+ import Data.Hashable
+-import Data.List
++import qualified Data.List as L
+ import Data.Maybe
+ import Data.Set(Set)
+ import Data.HashMap.Lazy(HashMap)
+@@ -174,7 +174,7 @@ function keyenc valenc =
+             (idx + 1,
+              Just val' : replicate (fromInteger (idx - count)) Nothing ++ accum)
+ 
+-          sorted = sortBy (\(a, _) (b, _) -> compare a b)
++          sorted = L.sortBy (\(a, _) (b, _) -> compare a b)
+                           (map (\(key, val') -> (encode keyenc key, val'))
+                                (Map.assocs val))
+ 
+@@ -217,7 +217,7 @@ functionHashable keyenc valenc =
+             (idx + 1,
+              Just val' : replicate (fromInteger (idx - count)) Nothing ++ accum)
+ 
+-          sorted = sortBy (\(a, _) (b, _) -> compare a b)
++          sorted = L.sortBy (\(a, _) (b, _) -> compare a b)
+                           (map (\(key, val') -> (encode keyenc key, val'))
+                                (HashMap.toList val))
+ 

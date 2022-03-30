@@ -1,0 +1,168 @@
+diff --git a/src/Codec/CBOR/Decoding.hs b/src/Codec/CBOR/Decoding.hs
+index 2d18e51..ff9ee02 100644
+--- a/src/Codec/CBOR/Decoding.hs
++++ b/src/Codec/CBOR/Decoding.hs
+@@ -188,7 +188,7 @@ data DecodeAction s a
+ 
+     | PeekTokenType  (TokenType -> ST s (DecodeAction s a))
+     | PeekAvailable  (Int#      -> ST s (DecodeAction s a))
+-#if defined(ARCH_32bit)
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
+     | PeekByteOffset (Int64#    -> ST s (DecodeAction s a))
+ #else
+     | PeekByteOffset (Int#      -> ST s (DecodeAction s a))
+@@ -327,12 +327,12 @@ toInt32  n = I32# (intToInt32# n)
+ toWord8  n = W8#  (wordToWord8# n)
+ toWord16 n = W16# (wordToWord16# n)
+ toWord32 n = W32# (wordToWord32# n)
+-#if WORD_SIZE_IN_BITS == 64
+-toInt64  n = I64# n
+-toWord64 n = W64# n
+-#else
++#if __GLASGOW_HASKELL__ >= 903 || WORD_SIZE_IN_BITS == 32
+ toInt64  n = I64# (intToInt64# n)
+ toWord64 n = W64# (wordToWord64# n)
++#else
++toInt64  n = I64# n
++toWord64 n = W64# n
+ #endif
+ #else
+ toInt8   n = I8#  n
+@@ -748,7 +748,7 @@ decodeTag64 :: Decoder s Word64
+ {-# INLINE decodeTag64 #-}
+ decodeTag64 =
+ #if defined(ARCH_64bit)
+-  Decoder (\k -> return (ConsumeTag (\w# -> k (W64# w#))))
++  Decoder (\k -> return (ConsumeTag (\w# -> k (toWord64 w#))))
+ #else
+   Decoder (\k -> return (ConsumeTag64 (\w64# -> k (W64# w64#))))
+ #endif
+@@ -769,7 +769,7 @@ decodeTag64Canonical :: Decoder s Word64
+ {-# INLINE decodeTag64Canonical #-}
+ decodeTag64Canonical =
+ #if defined(ARCH_64bit)
+-  Decoder (\k -> return (ConsumeTagCanonical (\w# -> k (W64# w#))))
++  Decoder (\k -> return (ConsumeTagCanonical (\w# -> k (toWord64 w#))))
+ #else
+   Decoder (\k -> return (ConsumeTag64Canonical (\w64# -> k (W64# w64#))))
+ #endif
+diff --git a/src/Codec/CBOR/FlatTerm.hs b/src/Codec/CBOR/FlatTerm.hs
+index 9d8b20a..b7c0b4d 100644
+--- a/src/Codec/CBOR/FlatTerm.hs
++++ b/src/Codec/CBOR/FlatTerm.hs
+@@ -50,10 +50,13 @@ import qualified Codec.CBOR.ByteArray        as BA
+ import qualified Codec.CBOR.ByteArray.Sliced as BAS
+ 
+ import           Data.Int
+-#if defined(ARCH_32bit)
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH32_bit)
+ import           GHC.Int   (Int64(I64#))
++import           GHC.Exts  (Int64#)
++#endif
++#if defined(ARCH32_bit)
+ import           GHC.Word  (Word64(W64#))
+-import           GHC.Exts  (Word64#, Int64#)
++import           GHC.Exts  (Word64#)
+ #endif
+ #if MIN_VERSION_ghc_prim(0,8,0)
+ import           GHC.Exts  (word8ToWord#)
+@@ -170,12 +173,12 @@ decodePreEncoded bs0 =
+               -- always starts by requesting initial input. Only decoders that
+               -- fail or return a value without looking at their input can give
+               -- a different initial result.
+-              Read.Partial k <- Read.deserialiseIncremental decodeTermToken
++              ~(Read.Partial k) <- Read.deserialiseIncremental decodeTermToken
+               k (Just bs)
+           collectOutput next
+ 
+     collectOutput :: Read.IDecode s TermToken -> ST.Lazy.ST s FlatTerm
+-    collectOutput (Read.Fail _ _ err) = fail $ "toFlatTerm: encodePreEncoded "
++    collectOutput (Read.Fail _ _ err) = error $ "toFlatTerm: encodePreEncoded "
+                                             ++ "used with invalid CBOR: "
+                                             ++ show err
+     collectOutput (Read.Partial    k) = ST.Lazy.strictToLazyST (k Nothing)
+@@ -456,7 +459,7 @@ fromFlatTerm decoder ft =
+     -- We don't have real bytes so we have to give these two operations
+     -- different interpretations: remaining tokens and just 0 for offsets.
+     go ts        (PeekAvailable k) = k (unI# (length ts)) >>= go ts
+-#if defined(ARCH_32bit)
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
+     go ts        (PeekByteOffset k)= k (unI64# 0) >>= go ts
+ #else
+     go ts        (PeekByteOffset k)= k 0# >>= go ts
+@@ -732,7 +735,9 @@ unD#   (D#   f#) = f#
+ #if defined(ARCH_32bit)
+ unW64# :: Word64 -> Word64#
+ unW64# (W64# w#) = w#
++#endif
+ 
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
+ unI64# :: Int64 -> Int64#
+ unI64# (I64# i#) = i#
+ #endif
+diff --git a/src/Codec/CBOR/Magic.hs b/src/Codec/CBOR/Magic.hs
+index 019f618..2a65ce2 100644
+--- a/src/Codec/CBOR/Magic.hs
++++ b/src/Codec/CBOR/Magic.hs
+@@ -166,7 +166,9 @@ grabWord32 (Ptr ip#) = W32# (wordToWord32# (byteSwap32# (word32ToWord# (indexWor
+ grabWord16 (Ptr ip#) = W16# (narrow16Word# (byteSwap16# (indexWord16OffAddr# ip# 0#)))
+ grabWord32 (Ptr ip#) = W32# (narrow32Word# (byteSwap32# (indexWord32OffAddr# ip# 0#)))
+ #endif
+-#if defined(ARCH_64bit)
++#if __GLASGOW_HASKELL__ >= 903
++grabWord64 (Ptr ip#) = W64# (byteSwap64# (indexWord64OffAddr# ip# 0#))
++#elif defined(ARCH_64bit)
+ grabWord64 (Ptr ip#) = W64# (byteSwap# (indexWord64OffAddr# ip# 0#))
+ #else
+ grabWord64 (Ptr ip#) = W64# (byteSwap64# (word64ToWord# (indexWord64OffAddr# ip# 0#)))
+@@ -418,13 +420,10 @@ int64ToWord64 = fromIntegral
+ word8ToWord  (W8#  w#) = W# (word8ToWord# w#)
+ word16ToWord (W16# w#) = W# (word16ToWord# w#)
+ word32ToWord (W32# w#) = W# (word32ToWord# w#)
+-#if defined(ARCH_64bit)
+-word64ToWord (W64# w#) = W# w#
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
++word64ToWord (W64# w64#) = W# (word64ToWord# w64#)
+ #else
+-word64ToWord (W64# w64#) =
+-  case isTrue# (w64# `leWord64#` wordToWord64# 0xffffffff##) of
+-    True  -> Just (W# (word64ToWord# w64#))
+-    False -> Nothing
++word64ToWord (W64# w#) = W# w#
+ #endif
+ #else
+ word8ToWord  (W8#  w#) = W# w#
+@@ -470,15 +469,15 @@ word32ToInt (W32# w#) =
+ #endif
+ #endif
+ 
+-#if defined(ARCH_64bit)
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
+ word64ToInt (W64# w#) =
+-  case isTrue# (w# `ltWord#` 0x8000000000000000##) of
+-    True  -> Just (I# (word2Int# w#))
++  case isTrue# (w# `ltWord64#` wordToWord64# 0x80000000##) of
++    True  -> Just (I# (int64ToInt# (word64ToInt64# w#)))
+     False -> Nothing
+ #else
+ word64ToInt (W64# w#) =
+-  case isTrue# (w# `ltWord64#` wordToWord64# 0x80000000##) of
+-    True  -> Just (I# (int64ToInt# (word64ToInt64# w#)))
++  case isTrue# (w# `ltWord#` 0x8000000000000000##) of
++    True  -> Just (I# (word2Int# w#))
+     False -> Nothing
+ #endif
+ 
+diff --git a/src/Codec/CBOR/Read.hs b/src/Codec/CBOR/Read.hs
+index 0dbb0b6..4d63bba 100644
+--- a/src/Codec/CBOR/Read.hs
++++ b/src/Codec/CBOR/Read.hs
+@@ -247,7 +247,7 @@ data SlowPath s a
+    | SlowConsumeTokenByteArray     {-# UNPACK #-} !ByteString (BA.ByteArray -> ST s (DecodeAction s a)) {-# UNPACK #-} !Int
+    | SlowConsumeTokenString        {-# UNPACK #-} !ByteString (T.Text       -> ST s (DecodeAction s a)) {-# UNPACK #-} !Int
+    | SlowConsumeTokenUtf8ByteArray {-# UNPACK #-} !ByteString (BA.ByteArray -> ST s (DecodeAction s a)) {-# UNPACK #-} !Int
+-#if defined(ARCH_32bit)
++#if __GLASGOW_HASKELL__ >= 903 || defined(ARCH_32bit)
+    | SlowPeekByteOffset            {-# UNPACK #-} !ByteString (Int64#       -> ST s (DecodeAction s a))
+ #else
+    | SlowPeekByteOffset            {-# UNPACK #-} !ByteString (Int#         -> ST s (DecodeAction s a))

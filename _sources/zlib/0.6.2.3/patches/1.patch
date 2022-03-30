@@ -1,0 +1,14 @@
+diff --git a/Codec/Compression/Zlib/Internal.hs b/Codec/Compression/Zlib/Internal.hs
+index 3c9971e..d4bb8f9 100644
+--- a/Codec/Compression/Zlib/Internal.hs
++++ b/Codec/Compression/Zlib/Internal.hs
+@@ -925,7 +925,8 @@ decompressStreamST format params =
+         if S.length chunk > 1
+           then do
+             -- have to handle the remaining data in this chunk
+-            (DecompressInputRequired next, zstate') <- runStreamST resume zstate
++            ir <- runStreamST resume zstate
++            let (DecompressInputRequired next, zstate') = ir
+             (strm', zstate'') <- runStreamST (next (S.tail chunk)) zstate'
+             go strm' zstate'' False
+           else do

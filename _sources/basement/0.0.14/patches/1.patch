@@ -1,0 +1,530 @@
+diff --git a/Basement/Bits.hs b/Basement/Bits.hs
+index ae73b8c..4a1e5ac 100644
+--- a/Basement/Bits.hs
++++ b/Basement/Bits.hs
+@@ -31,6 +31,7 @@ module Basement.Bits
+ 
+ import Basement.Compat.Base
+ import Basement.Compat.Natural
++import Basement.HeadHackageUtils
+ import Basement.Numerical.Additive
+ import Basement.Numerical.Subtractive
+ import Basement.Numerical.Multiplicative
+@@ -291,9 +292,9 @@ instance FiniteBitsOps Word where
+     rotateL w (CountOf i) = w `OldBits.rotateL` i
+     rotateR w (CountOf i) = w `OldBits.rotateR` i
+     bitFlip = OldBits.complement
+-    popCount (W# x#) = CountOf $ wordToInt (W# (popCnt64# x#))
+-    countLeadingZeros (W# w#) = CountOf $ wordToInt (W# (clz64# w#))
+-    countTrailingZeros (W# w#) = CountOf $ wordToInt (W# (ctz64# w#))
++    popCount (W# x#) = CountOf $ wordToInt (W# (popCnt64# (wordToWord64Compat# x#)))
++    countLeadingZeros (W# w#) = CountOf $ wordToInt (W# (clz64# (wordToWord64Compat# w#)))
++    countTrailingZeros (W# w#) = CountOf $ wordToInt (W# (ctz64# (wordToWord64Compat# w#)))
+ #else
+ instance FiniteBitsOps Word where
+     numberOfBits _ = 32
+@@ -433,9 +434,9 @@ instance FiniteBitsOps Int64 where
+     rotateL w (CountOf i) = w `OldBits.rotateL` i
+     rotateR w (CountOf i) = w `OldBits.rotateR` i
+     bitFlip = OldBits.complement
+-    popCount (I64# x#) = CountOf $ wordToInt (W# (popCnt64# (int2Word# x#)))
+-    countLeadingZeros (I64# w#) = CountOf $ wordToInt (W# (clz64# (int2Word# w#)))
+-    countTrailingZeros (I64# w#) = CountOf $ wordToInt (W# (ctz64# (int2Word# w#)))
++    popCount (I64# x#) = CountOf $ wordToInt (W# (popCnt64# (int64ToWord64Compat# x#)))
++    countLeadingZeros (I64# w#) = CountOf $ wordToInt (W# (clz64# (int64ToWord64Compat# w#)))
++    countTrailingZeros (I64# w#) = CountOf $ wordToInt (W# (ctz64# (int64ToWord64Compat# w#)))
+ instance BitOps Int64 where
+     (.&.)    a b    = (a OldBits..&. b)
+     (.|.)    a b    = (a OldBits..|. b)
+diff --git a/Basement/Cast.hs b/Basement/Cast.hs
+index e89de3e..1502100 100644
+--- a/Basement/Cast.hs
++++ b/Basement/Cast.hs
+@@ -19,6 +19,7 @@ import qualified Basement.Block.Base as Block
+ import           Basement.Compat.Base
+ import           Basement.Compat.Natural
+ import           Basement.Compat.Primitive
++import           Basement.HeadHackageUtils
+ import           Basement.Numerical.Number
+ import           Basement.Numerical.Conversion
+ import           Basement.PrimType
+@@ -82,24 +83,24 @@ instance Cast Word   Int where
+ 
+ #if WORD_SIZE_IN_BITS == 64
+ instance Cast Word   Word64 where
+-    cast (W# w) = W64# w
++    cast (W# w) = W64# (wordToWord64Compat# w)
+ instance Cast Word64 Word where
+-    cast (W64# w) = W# w
++    cast (W64# w) = W# (word64ToWordCompat# w)
+ 
+ instance Cast Word   Int64 where
+-    cast (W# w) = I64# (word2Int# w)
++    cast (W# w) = I64# (intToInt64Compat# (word2Int# w))
+ instance Cast Int64  Word where
+-    cast (I64# i) = W# (int2Word# i)
++    cast (I64# i) = W# (int2Word# (int64ToIntCompat# i))
+ 
+ instance Cast Int    Int64 where
+-    cast (I# i) = I64# i
++    cast (I# i) = I64# (intToInt64Compat# i)
+ instance Cast Int64  Int where
+-    cast (I64# i) = I# i
++    cast (I64# i) = I# (int64ToIntCompat# i)
+ 
+ instance Cast Int    Word64 where
+-    cast (I# i) = W64# (int2Word# i)
++    cast (I# i) = W64# (wordToWord64Compat# (int2Word# i))
+ instance Cast Word64 Int where
+-    cast (W64# w) = I# (word2Int# w)
++    cast (W64# w) = I# (word2Int# (word64ToWordCompat# w))
+ #else
+ instance Cast Word   Word32 where
+     cast (W# w) = W32# (wordToWord32# w)
+diff --git a/Basement/From.hs b/Basement/From.hs
+index 700e9ec..acd39e4 100644
+--- a/Basement/From.hs
++++ b/Basement/From.hs
+@@ -1,3 +1,4 @@
++{-# LANGUAGE CPP                   #-}
+ {-# LANGUAGE MultiParamTypeClasses #-}
+ {-# LANGUAGE FlexibleInstances     #-}
+ {-# LANGUAGE ScopedTypeVariables   #-}
+@@ -36,6 +37,9 @@ import           Basement.Compat.Base
+ -- basic instances
+ import           GHC.Types
+ import           GHC.Prim
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (word64ToWord#)
++#endif
+ import           GHC.Int
+ import           GHC.Word
+ import           Basement.Numerical.Number
+@@ -55,6 +59,7 @@ import           Basement.PrimType (PrimType, PrimSize)
+ import           Basement.Types.OffsetSize
+ import           Basement.Compat.Natural
+ import           Basement.Compat.Primitive
++import           Basement.HeadHackageUtils
+ import qualified Prelude (fromIntegral)
+ 
+ -- nat instances
+@@ -271,11 +276,11 @@ instance (NatWithinBound (CountOf ty) n, KnownNat n, PrimType ty)
+     tryFrom = BlockN.toBlockN . UArray.toBlock . BoxArray.mapToUnboxed id
+ 
+ instance (KnownNat n, NatWithinBound Word8 n) => From (Zn64 n) Word8 where
+-    from = narrow . unZn64 where narrow (W64# w) = W8# (wordToWord8# (word64ToWord# w))
++    from = narrow . unZn64 where narrow (W64# w) = W8# (wordToWord8# (word64ToWordCompat# w))
+ instance (KnownNat n, NatWithinBound Word16 n) => From (Zn64 n) Word16 where
+-    from = narrow . unZn64 where narrow (W64# w) = W16# (wordToWord16# (word64ToWord# w))
++    from = narrow . unZn64 where narrow (W64# w) = W16# (wordToWord16# (word64ToWordCompat# w))
+ instance (KnownNat n, NatWithinBound Word32 n) => From (Zn64 n) Word32 where
+-    from = narrow . unZn64 where narrow (W64# w) = W32# (wordToWord32# (word64ToWord# w))
++    from = narrow . unZn64 where narrow (W64# w) = W32# (wordToWord32# (word64ToWordCompat# w))
+ instance From (Zn64 n) Word64 where
+     from = unZn64
+ instance From (Zn64 n) Word128 where
+@@ -284,11 +289,11 @@ instance From (Zn64 n) Word256 where
+     from = from . unZn64
+ 
+ instance (KnownNat n, NatWithinBound Word8 n) => From (Zn n) Word8 where
+-    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W8# (wordToWord8# (word64ToWord# w))
++    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W8# (wordToWord8# (word64ToWordCompat# w))
+ instance (KnownNat n, NatWithinBound Word16 n) => From (Zn n) Word16 where
+-    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W16# (wordToWord16# (word64ToWord# w))
++    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W16# (wordToWord16# (word64ToWordCompat# w))
+ instance (KnownNat n, NatWithinBound Word32 n) => From (Zn n) Word32 where
+-    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W32# (wordToWord32# (word64ToWord# w))
++    from = narrow . naturalToWord64 . unZn where narrow (W64# w) = W32# (wordToWord32# (word64ToWordCompat# w))
+ instance (KnownNat n, NatWithinBound Word64 n) => From (Zn n) Word64 where
+     from = naturalToWord64 . unZn
+ instance (KnownNat n, NatWithinBound Word128 n) => From (Zn n) Word128 where
+diff --git a/Basement/HeadHackageUtils.hs b/Basement/HeadHackageUtils.hs
+new file mode 100644
+index 0000000..e4294ee
+--- /dev/null
++++ b/Basement/HeadHackageUtils.hs
+@@ -0,0 +1,85 @@
++{-# LANGUAGE CPP #-}
++{-# LANGUAGE MagicHash #-}
++module Basement.HeadHackageUtils where
++
++import GHC.Exts
++
++#if __GLASGOW_HASKELL__ >= 903
++and64Compat# :: Word64# -> Word64# -> Word64#
++and64Compat# = and64#
++
++int64ToIntCompat# :: Int64# -> Int#
++int64ToIntCompat# = int64ToInt#
++
++intToInt64Compat# :: Int# -> Int64#
++intToInt64Compat# = intToInt64#
++
++int64ToWord64Compat# :: Int64# -> Word64#
++int64ToWord64Compat# = int64ToWord64#
++
++or64Compat# :: Word64# -> Word64# -> Word64#
++or64Compat# = or64#
++
++plusInt64Compat# :: Int64# -> Int64# -> Int64#
++plusInt64Compat# = plusInt64#
++
++plusWord64Compat# :: Word64# -> Word64# -> Word64#
++plusWord64Compat# = plusWord64#
++
++uncheckedShiftL64Compat# :: Word64# -> Int# -> Word64#
++uncheckedShiftL64Compat# = uncheckedShiftL64#
++
++uncheckedShiftRL64Compat# :: Word64# -> Int# -> Word64#
++uncheckedShiftRL64Compat# = uncheckedShiftRL64#
++
++word64ToInt64Compat# :: Word64# -> Int64#
++word64ToInt64Compat# = word64ToInt64#
++
++word64ToWordCompat# :: Word64# -> Word#
++word64ToWordCompat# = word64ToWord#
++
++wordToWord64Compat# :: Word# -> Word64#
++wordToWord64Compat# = wordToWord64#
++
++xor64Compat# :: Word64# -> Word64# -> Word64#
++xor64Compat# = xor64#
++#else
++and64Compat# :: Word# -> Word# -> Word#
++and64Compat# = and#
++
++int64ToIntCompat# :: Int# -> Int#
++int64ToIntCompat# x = x
++
++intToInt64Compat# :: Int# -> Int#
++intToInt64Compat# x = x
++
++int64ToWord64Compat# :: Int# -> Word#
++int64ToWord64Compat# = int2Word#
++
++or64Compat# :: Word# -> Word# -> Word#
++or64Compat# = or#
++
++plusInt64Compat# :: Int# -> Int# -> Int#
++plusInt64Compat# = (+#)
++
++plusWord64Compat# :: Word# -> Word# -> Word#
++plusWord64Compat# = plusWord#
++
++uncheckedShiftL64Compat# :: Word# -> Int# -> Word#
++uncheckedShiftL64Compat# = uncheckedShiftL#
++
++uncheckedShiftRL64Compat# :: Word# -> Int# -> Word#
++uncheckedShiftRL64Compat# = uncheckedShiftRL#
++
++word64ToInt64Compat# :: Word# -> Int#
++word64ToInt64Compat# = word2Int#
++
++word64ToWordCompat# :: Word# -> Word#
++word64ToWordCompat# x = x
++
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++
++xor64Compat# :: Word# -> Word# -> Word#
++xor64Compat# = xor#
++#endif
+diff --git a/Basement/IntegralConv.hs b/Basement/IntegralConv.hs
+index f441675..76bd105 100644
+--- a/Basement/IntegralConv.hs
++++ b/Basement/IntegralConv.hs
+@@ -1,3 +1,4 @@
++{-# LANGUAGE CPP                   #-}
+ {-# LANGUAGE MagicHash             #-}
+ {-# LANGUAGE DefaultSignatures     #-}
+ {-# LANGUAGE MultiParamTypeClasses #-}
+@@ -21,11 +22,15 @@ module Basement.IntegralConv
+ 
+ import GHC.Types
+ import GHC.Prim
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (word64ToWord#)
++#endif
+ import GHC.Int
+ import GHC.Word
+ import Prelude (Integer, fromIntegral)
+ import Basement.Compat.Base
+ import Basement.Compat.Natural
++import Basement.HeadHackageUtils
+ import Basement.Compat.Primitive
+ import Basement.Numerical.Number
+ import Basement.Numerical.Conversion
+@@ -138,13 +143,13 @@ instance IntegralDownsize Int64 Int where
+     integralDownsizeCheck = integralDownsizeBounded integralDownsize
+ 
+ instance IntegralDownsize Word64 Word8 where
+-    integralDownsize      (W64# i) = W8# (wordToWord8# (word64ToWord# i))
++    integralDownsize      (W64# i) = W8# (wordToWord8# (word64ToWordCompat# i))
+     integralDownsizeCheck = integralDownsizeBounded integralDownsize
+ instance IntegralDownsize Word64 Word16 where
+-    integralDownsize      (W64# i) = W16# (wordToWord16# (word64ToWord# i))
++    integralDownsize      (W64# i) = W16# (wordToWord16# (word64ToWordCompat# i))
+     integralDownsizeCheck = integralDownsizeBounded integralDownsize
+ instance IntegralDownsize Word64 Word32 where
+-    integralDownsize      (W64# i) = W32# (wordToWord32# (word64ToWord# i))
++    integralDownsize      (W64# i) = W32# (wordToWord32# (word64ToWordCompat# i))
+     integralDownsizeCheck = integralDownsizeBounded integralDownsize
+ 
+ instance IntegralDownsize Word Word8 where
+diff --git a/Basement/Numerical/Additive.hs b/Basement/Numerical/Additive.hs
+index 256495d..b5b3e57 100644
+--- a/Basement/Numerical/Additive.hs
++++ b/Basement/Numerical/Additive.hs
+@@ -22,6 +22,7 @@ import           GHC.Prim (plusWord#, plusFloat#, (+#), (+##))
+ import           GHC.Int
+ import           GHC.Word
+ import           Basement.Bounded
++import           Basement.HeadHackageUtils
+ import           Basement.Nat
+ import           Basement.Types.Word128 (Word128)
+ import           Basement.Types.Word256 (Word256)
+@@ -79,7 +80,7 @@ instance Additive Int32 where
+ instance Additive Int64 where
+     azero = 0
+ #if WORD_SIZE_IN_BITS == 64
+-    (I64# a) + (I64# b) = I64# (a +# b)
++    (I64# a) + (I64# b) = I64# (a `plusInt64Compat#` b)
+ #else
+     (I64# a) + (I64# b) = I64# (a `plusInt64#` b)
+ #endif
+@@ -107,7 +108,7 @@ instance Additive Word32 where
+ instance Additive Word64 where
+     azero = 0
+ #if WORD_SIZE_IN_BITS == 64
+-    (W64# a) + (W64# b) = W64# (a `plusWord#` b)
++    (W64# a) + (W64# b) = W64# (a `plusWord64Compat#` b)
+ #else
+     (W64# a) + (W64# b) = W64# (int64ToWord64# (word64ToInt64# a `plusInt64#` word64ToInt64# b))
+ #endif
+diff --git a/Basement/Numerical/Conversion.hs b/Basement/Numerical/Conversion.hs
+index 1bdab09..f8b48d9 100644
+--- a/Basement/Numerical/Conversion.hs
++++ b/Basement/Numerical/Conversion.hs
+@@ -18,8 +18,12 @@ module Basement.Numerical.Conversion
+ 
+ #include "MachDeps.h"
+ 
++import Basement.HeadHackageUtils
+ import GHC.Types
+ import GHC.Prim
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (word64ToWord#)
++#endif
+ import GHC.Int
+ import GHC.Word
+ import Basement.Compat.Primitive
+@@ -30,42 +34,42 @@ import GHC.IntWord64
+ 
+ intToInt64 :: Int -> Int64
+ #if WORD_SIZE_IN_BITS == 64
+-intToInt64 (I# i) = I64# i
++intToInt64 (I# i) = I64# (intToInt64Compat# i)
+ #else
+ intToInt64 (I# i) = I64# (intToInt64# i)
+ #endif
+ 
+ int64ToInt :: Int64 -> Int
+ #if WORD_SIZE_IN_BITS == 64
+-int64ToInt (I64# i) = I# i
++int64ToInt (I64# i) = I# (int64ToIntCompat# i)
+ #else
+ int64ToInt (I64# i) = I# (int64ToInt# i)
+ #endif
+ 
+ wordToWord64 :: Word -> Word64
+ #if WORD_SIZE_IN_BITS == 64
+-wordToWord64 (W# i) = W64# i
++wordToWord64 (W# i) = W64# (wordToWord64Compat# i)
+ #else
+ wordToWord64 (W# i) = W64# (wordToWord64# i)
+ #endif
+ 
+ word64ToWord :: Word64 -> Word
+ #if WORD_SIZE_IN_BITS == 64
+-word64ToWord (W64# i) = W# i
++word64ToWord (W64# i) = W# (word64ToWordCompat# i)
+ #else
+ word64ToWord (W64# i) = W# (word64ToWord# i)
+ #endif
+ 
+ word64ToInt64 :: Word64 -> Int64
+ #if WORD_SIZE_IN_BITS == 64
+-word64ToInt64 (W64# i) = I64# (word2Int# i)
++word64ToInt64 (W64# i) = I64# (word64ToInt64Compat# i)
+ #else
+ word64ToInt64 (W64# i) = I64# (word64ToInt64# i)
+ #endif
+ 
+ int64ToWord64 :: Int64 -> Word64
+ #if WORD_SIZE_IN_BITS == 64
+-int64ToWord64 (I64# i) = W64# (int2Word# i)
++int64ToWord64 (I64# i) = W64# (int64ToWord64Compat# i)
+ #else
+ int64ToWord64 (I64# i) = W64# (int64ToWord64# i)
+ #endif
+@@ -82,7 +86,7 @@ data Word32x2 = Word32x2 {-# UNPACK #-} !Word32
+ 
+ #if WORD_SIZE_IN_BITS == 64
+ word64ToWord32s :: Word64 -> Word32x2
+-word64ToWord32s (W64# w64) = Word32x2 (W32# (wordToWord32# (uncheckedShiftRL# w64 32#))) (W32# (wordToWord32# w64))
++word64ToWord32s (W64# w64) = Word32x2 (W32# (wordToWord32# (word64ToWordCompat# (uncheckedShiftRL64Compat# w64 32#)))) (W32# (wordToWord32# (word64ToWordCompat# w64)))
+ #else
+ word64ToWord32s :: Word64 -> Word32x2
+ word64ToWord32s (W64# w64) = Word32x2 (W32# (word64ToWord# (uncheckedShiftRL64# w64 32#))) (W32# (word64ToWord# w64))
+diff --git a/Basement/Types/OffsetSize.hs b/Basement/Types/OffsetSize.hs
+index 06b7d07..591e0a0 100644
+--- a/Basement/Types/OffsetSize.hs
++++ b/Basement/Types/OffsetSize.hs
+@@ -57,6 +57,7 @@ import Data.Bits
+ import Basement.Compat.Base
+ import Basement.Compat.C.Types
+ import Basement.Compat.Semigroup
++import Basement.HeadHackageUtils
+ import Data.Proxy
+ import Basement.Numerical.Number
+ import Basement.Numerical.Additive
+@@ -227,14 +228,14 @@ csizeOfSize :: CountOf Word8 -> CSize
+ #if WORD_SIZE_IN_BITS < 64
+ csizeOfSize (CountOf (I# sz)) = CSize (W32# (int2Word# sz))
+ #else
+-csizeOfSize (CountOf (I# sz)) = CSize (W64# (int2Word# sz))
++csizeOfSize (CountOf (I# sz)) = CSize (W64# (wordToWord64Compat# (int2Word# sz)))
+ #endif
+ 
+ csizeOfOffset :: Offset8 -> CSize
+ #if WORD_SIZE_IN_BITS < 64
+ csizeOfOffset (Offset (I# sz)) = CSize (W32# (int2Word# sz))
+ #else
+-csizeOfOffset (Offset (I# sz)) = CSize (W64# (int2Word# sz))
++csizeOfOffset (Offset (I# sz)) = CSize (W64# (wordToWord64Compat# (int2Word# sz)))
+ #endif
+ 
+ sizeOfCSSize :: CSsize -> CountOf Word8
+@@ -242,14 +243,14 @@ sizeOfCSSize (CSsize (-1))      = error "invalid size: CSSize is -1"
+ #if WORD_SIZE_IN_BITS < 64
+ sizeOfCSSize (CSsize (I32# sz)) = CountOf (I# sz)
+ #else
+-sizeOfCSSize (CSsize (I64# sz)) = CountOf (I# sz)
++sizeOfCSSize (CSsize (I64# sz)) = CountOf (I# (int64ToIntCompat# sz))
+ #endif
+ 
+ sizeOfCSize :: CSize -> CountOf Word8
+ #if WORD_SIZE_IN_BITS < 64
+ sizeOfCSize (CSize (W32# sz)) = CountOf (I# (word2Int# sz))
+ #else
+-sizeOfCSize (CSize (W64# sz)) = CountOf (I# (word2Int# sz))
++sizeOfCSize (CSize (W64# sz)) = CountOf (I# (word2Int# (word64ToWordCompat# sz)))
+ #endif
+ 
+ natValCountOf :: forall n ty proxy . (KnownNat n, NatWithinBound (CountOf ty) n) => proxy n -> CountOf ty
+diff --git a/Basement/Types/Word128.hs b/Basement/Types/Word128.hs
+index 13d68fa..0a1f038 100644
+--- a/Basement/Types/Word128.hs
++++ b/Basement/Types/Word128.hs
+@@ -37,6 +37,7 @@ import           Foreign.Storable
+ import           Basement.Compat.Base
+ import           Basement.Compat.Natural
+ import           Basement.Compat.Primitive (bool#)
++import           Basement.HeadHackageUtils
+ import           Basement.Numerical.Conversion
+ import           Basement.Numerical.Number
+ 
+@@ -128,10 +129,15 @@ instance Bits.Bits Word128 where
+ #if WORD_SIZE_IN_BITS < 64
+ (+) = applyBiWordOnNatural (Prelude.+)
+ #else
+-(+) (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) = Word128 (W64# s1) (W64# s0)
++(+) (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) = Word128 (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# carry, s0 #) = plusWord2# a0 b0
+-    s1               = plusWord# (plusWord# a1 b1) carry
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++
++    !(# carry, s0 #) = plusWord2# a0' b0'
++    s1               = plusWord# (plusWord# a1' b1') carry
+ #endif
+ 
+ -- temporary available until native operation available
+diff --git a/Basement/Types/Word256.hs b/Basement/Types/Word256.hs
+index 62ed727..7244d6b 100644
+--- a/Basement/Types/Word256.hs
++++ b/Basement/Types/Word256.hs
+@@ -36,6 +36,7 @@ import           Foreign.Storable
+ import           Basement.Compat.Base
+ import           Basement.Compat.Natural
+ import           Basement.Compat.Primitive (bool#)
++import           Basement.HeadHackageUtils
+ import           Basement.Numerical.Conversion
+ import           Basement.Numerical.Number
+ 
+@@ -149,12 +150,22 @@ instance Bits.Bits Word256 where
+ #else
+ (+) (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+     (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-    Word256 (W64# s3) (W64# s2) (W64# s1) (W64# s0)
++    Word256 (W64# (wordToWord64Compat# s3)) (W64# (wordToWord64Compat# s2))
++            (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# c0, s0 #) = plusWord2# a0 b0
+-    !(# c1, s1 #) = plusWord3# a1 b1 c0
+-    !(# c2, s2 #) = plusWord3# a2 b2 c1
+-    !s3           = plusWord3NoCarry# a3 b3 c2
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !a2' = word64ToWordCompat# a2
++    !a3' = word64ToWordCompat# a3
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++    !b2' = word64ToWordCompat# b2
++    !b3' = word64ToWordCompat# b3
++
++    !(# c0, s0 #) = plusWord2# a0' b0'
++    !(# c1, s1 #) = plusWord3# a1' b1' c0
++    !(# c2, s2 #) = plusWord3# a2' b2' c1
++    !s3           = plusWord3NoCarry# a3' b3' c2
+ 
+     plusWord3NoCarry# a b c = plusWord# (plusWord# a b) c
+     plusWord3# a b c
+diff --git a/Basement/UArray/Mutable.hs b/Basement/UArray/Mutable.hs
+index 86f1147..dc08a8b 100644
+--- a/Basement/UArray/Mutable.hs
++++ b/Basement/UArray/Mutable.hs
+@@ -40,7 +40,7 @@ module Basement.UArray.Mutable
+     , withMutablePtrHint
+     ) where
+ 
+-import           GHC.Prim
++import           GHC.Exts
+ import           GHC.Types
+ import           GHC.Ptr
+ import           Basement.Compat.Base
+@@ -104,7 +104,7 @@ sub :: (PrimMonad prim, PrimType ty)
+     -> prim (MUArray ty (PrimState prim))
+ sub (MUArray start sz back) dropElems' takeElems
+     | takeElems <= 0 = empty
+-    | Just keepElems <- sz - dropElems, keepElems > 0 
++    | Just keepElems <- sz - dropElems, keepElems > 0
+                      = pure $ MUArray (start `offsetPlusE` dropElems) (min (CountOf takeElems) keepElems) back
+     | otherwise      = empty
+   where
+diff --git a/basement.cabal b/basement.cabal
+index 7a60516..1d39b81 100644
+--- a/basement.cabal
++++ b/basement.cabal
+@@ -136,6 +136,8 @@ library
+ 
+                      Basement.Terminal.Size
+ 
++                     Basement.HeadHackageUtils
++
+   -- support and dependencies
+   if impl(ghc < 8.8)
+     buildable: False

@@ -1,0 +1,541 @@
+diff --git a/src/Data/Bytes/Parser.hs b/src/Data/Bytes/Parser.hs
+index a489a34..d9d6f08 100644
+--- a/src/Data/Bytes/Parser.hs
++++ b/src/Data/Bytes/Parser.hs
+@@ -1,5 +1,6 @@
+ {-# language BangPatterns #-}
+ {-# language BinaryLiterals #-}
++{-# language CPP #-}
+ {-# language DataKinds #-}
+ {-# language DeriveFunctor #-}
+ {-# language DerivingStrategies #-}
+@@ -217,12 +218,12 @@ bytes e !expected = Parser
+ -- | Consume input matching the @NUL@-terminated C String.
+ cstring :: e -> CString -> Parser e s ()
+ cstring e (Exts.Ptr ptr0) = Parser
+-  ( \(# arr, off0, len0 #) s -> 
+-    let go !ptr !off !len = case Exts.indexWord8OffAddr# ptr 0# of
++  ( \(# arr, off0, len0 #) s ->
++    let go !ptr !off !len = case word8ToWordCompat# (Exts.indexWord8OffAddr# ptr 0#) of
+           0## -> (# s, (# | (# (), off, len #) #) #)
+           c -> case len of
+             0# -> (# s, (# e | #) #)
+-            _ -> case Exts.eqWord# c (Exts.indexWord8Array# arr off) of
++            _ -> case Exts.eqWord# c (word8ToWordCompat# (Exts.indexWord8Array# arr off)) of
+               1# -> go (Exts.plusAddr# ptr 1# ) (off +# 1# ) (len -# 1# )
+               _ -> (# s, (# e | #) #)
+      in go ptr0 off0 len0
+@@ -483,7 +484,7 @@ unboxWord32 (Parser f) = Parser
+   (\x s0 -> case f x s0 of
+     (# s1, r #) -> case r of
+       (# e | #) -> (# s1, (# e | #) #)
+-      (# | (# W32# a, b, c #) #) -> (# s1, (# | (# a, b, c #) #) #)
++      (# | (# W32# a, b, c #) #) -> (# s1, (# | (# word32ToWordCompat# a, b, c #) #) #)
+   )
+ 
+ -- | Convert a @(Int,Int)@ parser to a @(# Int#, Int# #)@ parser.
+@@ -504,7 +505,7 @@ boxWord32 (Parser f) = Parser
+   (\x s0 -> case f x s0 of
+     (# s1, r #) -> case r of
+       (# e | #) -> (# s1, (# e | #) #)
+-      (# | (# a, b, c #) #) -> (# s1, (# | (# W32# a, b, c #) #) #)
++      (# | (# a, b, c #) #) -> (# s1, (# | (# W32# (wordToWord32Compat# a), b, c #) #) #)
+   )
+ 
+ -- | Convert a @(# Int#, Int# #)@ parser to a @(Int,Int)@ parser.
+@@ -724,3 +725,23 @@ replicate !len p = do
+ unI :: Int -> Int#
+ {-# inline unI #-}
+ unI (I# w) = w
++
++#if MIN_VERSION_base(4,16,0)
++word8ToWordCompat# :: Exts.Word8# -> Word#
++word8ToWordCompat# = Exts.word8ToWord#
++
++word32ToWordCompat# :: Exts.Word32# -> Word#
++word32ToWordCompat# = Exts.word32ToWord#
++
++wordToWord32Compat# :: Word# -> Exts.Word32#
++wordToWord32Compat# = Exts.wordToWord32#
++#else
++word8ToWordCompat# :: Word# -> Word#
++word8ToWordCompat# x = x
++
++word32ToWordCompat# :: Word# -> Word#
++word32ToWordCompat# x = x
++
++wordToWord32Compat# :: Word# -> Word#
++wordToWord32Compat# x = x
++#endif
+diff --git a/src/Data/Bytes/Parser/Latin.hs b/src/Data/Bytes/Parser/Latin.hs
+index 462bbae..73b8e55 100644
+--- a/src/Data/Bytes/Parser/Latin.hs
++++ b/src/Data/Bytes/Parser/Latin.hs
+@@ -1,5 +1,6 @@
+ {-# language BangPatterns #-}
+ {-# language BinaryLiterals #-}
++{-# language CPP #-}
+ {-# language DataKinds #-}
+ {-# language DeriveFunctor #-}
+ {-# language DerivingStrategies #-}
+@@ -385,7 +386,7 @@ skipDigitsAscii1LoopStart ::
+   -> Bytes -- chunk
+   -> Result# e ()
+ skipDigitsAscii1LoopStart e !c = if length c > 0
+-  then 
++  then
+     let w = indexLatinCharArray (array c) (offset c)
+      in if w >= '0' && w <= '9'
+           then upcastUnitSuccess (skipDigitsAsciiLoop (Bytes.unsafeDrop 1 c))
+@@ -563,7 +564,7 @@ upcastWordResult (# | (# a, b, c #) #) = (# | (# W# a, b, c #) #)
+ upcastWord64Result :: Result# e Word# -> Result# e Word64
+ {-# inline upcastWord64Result #-}
+ upcastWord64Result (# e | #) = (# e | #)
+-upcastWord64Result (# | (# a, b, c #) #) = (# | (# W64# a, b, c #) #)
++upcastWord64Result (# | (# a, b, c #) #) = (# | (# W64# (wordToWord64Compat# a), b, c #) #)
+ 
+ hexSmallWordMore ::
+      e -- Error message
+@@ -619,19 +620,19 @@ decWordStart e !chunk0 s0 = if length chunk0 > 0
+ upcastWord16Result :: Result# e Word# -> Result# e Word16
+ {-# inline upcastWord16Result #-}
+ upcastWord16Result (# e | #) = (# e | #)
+-upcastWord16Result (# | (# a, b, c #) #) = (# | (# W16# a, b, c #) #)
++upcastWord16Result (# | (# a, b, c #) #) = (# | (# W16# (wordToWord16Compat# a), b, c #) #)
+ 
+ -- Precondition: the word is small enough
+ upcastWord32Result :: Result# e Word# -> Result# e Word32
+ {-# inline upcastWord32Result #-}
+ upcastWord32Result (# e | #) = (# e | #)
+-upcastWord32Result (# | (# a, b, c #) #) = (# | (# W32# a, b, c #) #)
++upcastWord32Result (# | (# a, b, c #) #) = (# | (# W32# (wordToWord32Compat# a), b, c #) #)
+ 
+ -- Precondition: the word is small enough
+ upcastWord8Result :: Result# e Word# -> Result# e Word8
+ {-# inline upcastWord8Result #-}
+ upcastWord8Result (# e | #) = (# e | #)
+-upcastWord8Result (# | (# a, b, c #) #) = (# | (# W8# a, b, c #) #)
++upcastWord8Result (# | (# a, b, c #) #) = (# | (# W8# (wordToWord8Compat# a), b, c #) #)
+ 
+ -- | Parse a decimal-encoded number. If the number is too large to be
+ -- represented by a machine integer, this fails with the provided
+@@ -707,7 +708,7 @@ decSignedInt# e = any e `bindFromLiftedToInt` \c -> case c of
+     (\chunk0 s0 -> decPosIntStart e (boxBytes chunk0) s0)
+   '-' -> Parser -- minus sign
+     (\chunk0 s0 -> decNegIntStart e (boxBytes chunk0) s0)
+-  _ -> Parser -- no sign, there should be a digit here 
++  _ -> Parser -- no sign, there should be a digit here
+     (\chunk0 s0 ->
+       let !w = char2Word c - 48
+         in if w < 10
+@@ -722,7 +723,7 @@ decStandardInt# :: e -> Parser e s Int#
+ decStandardInt# e = any e `bindFromLiftedToInt` \c -> case c of
+   '-' -> Parser -- minus sign
+     (\chunk0 s0 -> decNegIntStart e (boxBytes chunk0) s0)
+-  _ -> Parser -- no sign, there should be a digit here 
++  _ -> Parser -- no sign, there should be a digit here
+     (\chunk0 s0 ->
+       let !w = char2Word c - 48
+         in if w < 10
+@@ -759,7 +760,7 @@ decSignedInteger e = any e >>= \c -> case c of
+   '-' -> do
+     x <- decUnsignedInteger e
+     pure $! negate x
+-  _ -> Parser -- no sign, there should be a digit here 
++  _ -> Parser -- no sign, there should be a digit here
+     (\chunk0 s0 ->
+       let !w = char2Word c - 48 in
+       if w < 10
+@@ -795,11 +796,11 @@ decNegIntStart e !chunk0 s0 = if length chunk0 > 0
+     let !w = fromIntegral @Word8 @Word
+           (PM.indexByteArray (array chunk0) (offset chunk0)) - 48
+      in if w < 10
+-          then 
++          then
+             case decPosIntMore e w (maxIntAsWord + 1) (Bytes.unsafeDrop 1 chunk0) of
+-             (# | (# x, y, z #) #) -> 
++             (# | (# x, y, z #) #) ->
+                (# s0, (# | (# (notI# x +# 1# ), y, z #) #) #)
+-             (# err | #) -> 
++             (# err | #) ->
+                (# s0, (# err | #) #)
+           else (# s0, (# e | #) #)
+   else (# s0, (# e | #) #)
+@@ -827,7 +828,7 @@ decUnsignedIntegerStart e !chunk0 s0 = if length chunk0 > 0
+ -- exceeds the upper bound.
+ decPosIntMore ::
+      e -- Error message
+-  -> Word -- Accumulator, precondition: less than or equal to bound 
++  -> Word -- Accumulator, precondition: less than or equal to bound
+   -> Word -- Inclusive Upper Bound, either (2^63 - 1) or 2^63
+   -> Bytes -- Chunk
+   -> Result# e Int#
+@@ -918,7 +919,7 @@ takeTrailedBy e !w = do
+ -- | Skip all characters until the terminator is encountered
+ -- and then consume the matching character as well. Visually,
+ -- @skipTrailedBy \'C\'@ advances the cursor like this:
+--- 
++--
+ -- >  A Z B Y C X C W
+ -- > |->->->->-|
+ --
+@@ -931,7 +932,7 @@ skipTrailedBy e !w = uneffectful# $ \c ->
+ -- | Skip all characters until the terminator is encountered.
+ -- This does not consume the terminator. Visually, @skipUntil \'C\'@
+ -- advances the cursor like this:
+--- 
++--
+ -- >  A Z B Y C X C W
+ -- > |->->->-|
+ --
+@@ -971,7 +972,7 @@ hexFixedWord32 e = Parser
+   (\x s0 -> case runParser (hexFixedWord32# e) x s0 of
+     (# s1, r #) -> case r of
+       (# err | #) -> (# s1, (# err | #) #)
+-      (# | (# a, b, c #) #) -> (# s1, (# | (# W32# a, b, c #) #) #)
++      (# | (# a, b, c #) #) -> (# s1, (# | (# W32# (wordToWord32Compat# a), b, c #) #) #)
+   )
+ 
+ hexFixedWord32# :: e -> Parser e s Word#
+@@ -1011,7 +1012,7 @@ hexFixedWord64 e = Parser
+   (\x s0 -> case runParser (hexFixedWord64# e) x s0 of
+     (# s1, r #) -> case r of
+       (# err | #) -> (# s1, (# err | #) #)
+-      (# | (# a, b, c #) #) -> (# s1, (# | (# W64# a, b, c #) #) #)
++      (# | (# a, b, c #) #) -> (# s1, (# | (# W64# (wordToWord64Compat# a), b, c #) #) #)
+   )
+ 
+ hexFixedWord64# :: e -> Parser e s Word#
+@@ -1020,7 +1021,7 @@ hexFixedWord64# e = uneffectfulWord# $ \chunk -> if length chunk >= 16
+   then
+     let go !off !len !acc = case len of
+           0 -> case acc of
+-            W# r -> 
++            W# r ->
+               (# | (# r
+               ,  unI off
+               ,  unI (length chunk) -# 16# #) #)
+@@ -1042,7 +1043,7 @@ hexFixedWord16 e = Parser
+   (\x s0 -> case runParser (hexFixedWord16# e) x s0 of
+     (# s1, r #) -> case r of
+       (# err | #) -> (# s1, (# err | #) #)
+-      (# | (# a, b, c #) #) -> (# s1, (# | (# W16# a, b, c #) #) #)
++      (# | (# a, b, c #) #) -> (# s1, (# | (# W16# (wordToWord16Compat# a), b, c #) #) #)
+   )
+ 
+ hexFixedWord16# :: e -> Parser e s Word#
+@@ -1074,7 +1075,7 @@ hexFixedWord8 e = Parser
+   (\x s0 -> case runParser (hexFixedWord8# e) x s0 of
+     (# s1, r #) -> case r of
+       (# err | #) -> (# s1, (# err | #) #)
+-      (# | (# a, b, c #) #) -> (# s1, (# | (# W8# a, b, c #) #) #)
++      (# | (# a, b, c #) #) -> (# s1, (# | (# W8# (wordToWord8Compat# a), b, c #) #) #)
+   )
+ 
+ hexFixedWord8# :: e -> Parser e s Word#
+@@ -1173,7 +1174,7 @@ uneffectfulWord# f = Parser
+ -- word is less than or equal to the upper bound
+ positivePushBase10 :: Word -> Word -> Word -> (Bool,Word)
+ {-# inline positivePushBase10 #-}
+-positivePushBase10 (W# a) (W# b) (W# upper) = 
++positivePushBase10 (W# a) (W# b) (W# upper) =
+   let !(# ca, r0 #) = Exts.timesWord2# a 10##
+       !r1 = Exts.plusWord# r0 b
+       !cb = int2Word# (gtWord# r1 upper)
+@@ -1183,7 +1184,7 @@ positivePushBase10 (W# a) (W# b) (W# upper) =
+ 
+ unsignedPushBase10 :: Word -> Word -> (Bool,Word)
+ {-# inline unsignedPushBase10 #-}
+-unsignedPushBase10 (W# a) (W# b) = 
++unsignedPushBase10 (W# a) (W# b) =
+   let !(# ca, r0 #) = Exts.timesWord2# a 10##
+       !r1 = Exts.plusWord# r0 b
+       !cb = int2Word# (ltWord# r1 r0)
+@@ -1238,3 +1239,31 @@ peek' :: e -> Parser e s Char
+ peek' e = uneffectful $ \(Bytes arr off len) -> if len > 0
+   then Success (indexCharArray arr off) off len
+   else Failure e
++
++#if MIN_VERSION_base(4,16,0)
++wordToWord8Compat# :: Word# -> Exts.Word8#
++wordToWord8Compat# = Exts.wordToWord8#
++
++wordToWord16Compat# :: Word# -> Exts.Word16#
++wordToWord16Compat# = Exts.wordToWord16#
++
++wordToWord32Compat# :: Word# -> Exts.Word32#
++wordToWord32Compat# = Exts.wordToWord32#
++#else
++wordToWord8Compat# :: Word# -> Word#
++wordToWord8Compat# x = x
++
++wordToWord16Compat# :: Word# -> Word#
++wordToWord16Compat# x = x
++
++wordToWord32Compat# :: Word# -> Word#
++wordToWord32Compat# x = x
++#endif
++
++#if __GLASGOW_HASKELL__ >= 903
++wordToWord64Compat# :: Word# -> Exts.Word64#
++wordToWord64Compat# = Exts.wordToWord64#
++#else
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++#endif
+diff --git a/src/Data/Bytes/Parser/Rebindable.hs b/src/Data/Bytes/Parser/Rebindable.hs
+index 3e04d0d..61f7c57 100644
+--- a/src/Data/Bytes/Parser/Rebindable.hs
++++ b/src/Data/Bytes/Parser/Rebindable.hs
+@@ -1,3 +1,4 @@
++{-# language CPP #-}
+ {-# language FlexibleInstances #-}
+ {-# language MagicHash #-}
+ {-# language MultiParamTypeClasses #-}
+@@ -21,8 +22,12 @@ module Data.Bytes.Parser.Rebindable
+   , Pure(..)
+   ) where
+ 
+-import Prelude () 
+-import GHC.Exts (TYPE,RuntimeRep(..))
++import Prelude ()
++import GHC.Exts (TYPE,RuntimeRep(..)
++#if MIN_VERSION_base(4,16,0)
++                ,LiftedRep
++#endif
++                )
+ import Data.Bytes.Parser.Internal (Parser(..))
+ 
+ class Bind (ra :: RuntimeRep) (rb :: RuntimeRep) where
+@@ -160,8 +165,8 @@ sequenceIntPairParser (Parser f) (Parser g) = Parser
+       (# | (# _, b, c #) #) -> g (# arr, b, c #) s1
+   )
+ 
+-bindInt2to5Parser :: forall 
+-  (a :: TYPE ('TupleRep '[ 'IntRep, 'IntRep])) 
++bindInt2to5Parser :: forall
++  (a :: TYPE ('TupleRep '[ 'IntRep, 'IntRep]))
+   (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]))
+   e s.
+   Parser e s a -> (a -> Parser e s b) -> Parser e s b
+@@ -174,7 +179,7 @@ bindInt2to5Parser (Parser f) g = Parser
+         runParser (g y) (# arr, b, c #) s1
+   )
+ 
+-sequenceInt2to5Parser :: forall 
++sequenceInt2to5Parser :: forall
+   (a :: TYPE ('TupleRep '[ 'IntRep, 'IntRep]))
+   (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]))
+   e s.
+@@ -187,25 +192,25 @@ sequenceInt2to5Parser (Parser f) (Parser g) = Parser
+       (# | (# _, b, c #) #) -> g (# arr, b, c #) s1
+   )
+ 
+-instance Bind 'LiftedRep 'LiftedRep where
++instance Bind LiftedRep LiftedRep where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindParser
+   (>>) = sequenceParser
+ 
+-instance Bind 'WordRep 'LiftedRep where
++instance Bind 'WordRep LiftedRep where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindWordParser
+   (>>) = sequenceWordParser
+ 
+-instance Bind 'IntRep 'LiftedRep where
++instance Bind 'IntRep LiftedRep where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindIntParser
+   (>>) = sequenceIntParser
+ 
+-instance Bind ('TupleRep '[ 'IntRep, 'IntRep]) 'LiftedRep where
++instance Bind ('TupleRep '[ 'IntRep, 'IntRep]) LiftedRep where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindIntPairParser
+@@ -213,15 +218,15 @@ instance Bind ('TupleRep '[ 'IntRep, 'IntRep]) 'LiftedRep where
+ 
+ 
+ instance Bind ('TupleRep '[ 'IntRep, 'IntRep])
+-              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]) 
++              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])
+   where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindInt2to5Parser
+   (>>) = sequenceInt2to5Parser
+ 
+-instance Bind ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]) 
+-              'LiftedRep
++instance Bind ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])
++              LiftedRep
+   where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+@@ -230,21 +235,21 @@ instance Bind ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])
+ 
+ 
+ instance Bind 'IntRep
+-              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]) 
++              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])
+   where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindFromIntToInt5
+   (>>) = sequenceIntToInt5
+ 
+-instance Bind 'LiftedRep ('TupleRep '[ 'IntRep, 'IntRep]) where
++instance Bind LiftedRep ('TupleRep '[ 'IntRep, 'IntRep]) where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindFromLiftedToIntPair
+   (>>) = sequenceLiftedToIntPair
+ 
+-instance Bind 'LiftedRep
+-              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep]) 
++instance Bind LiftedRep
++              ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])
+   where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+@@ -257,13 +262,13 @@ instance Bind 'IntRep ('TupleRep '[ 'IntRep, 'IntRep]) where
+   (>>=) = bindFromIntToIntPair
+   (>>) = sequenceIntToIntPair
+ 
+-instance Bind 'LiftedRep 'IntRep where
++instance Bind LiftedRep 'IntRep where
+   {-# inline (>>=) #-}
+   {-# inline (>>) #-}
+   (>>=) = bindFromLiftedToInt
+   (>>) = sequenceLiftedToInt
+ 
+-instance Pure 'LiftedRep where
++instance Pure LiftedRep where
+   {-# inline pure #-}
+   pure = pureParser
+ 
+@@ -343,7 +348,7 @@ sequenceIntToInt5 (Parser f) (Parser g) = Parser
+ 
+ bindFromLiftedToIntPair ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep ])).
+      Parser s e a
+   -> (a -> Parser s e b)
+@@ -359,7 +364,7 @@ bindFromLiftedToIntPair (Parser f) g = Parser
+ 
+ sequenceLiftedToIntPair ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep ])).
+      Parser s e a
+   -> Parser s e b
+@@ -375,7 +380,7 @@ sequenceLiftedToIntPair (Parser f) (Parser g) = Parser
+ 
+ bindFromLiftedToInt5 ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep])).
+      Parser s e a
+   -> (a -> Parser s e b)
+@@ -391,7 +396,7 @@ bindFromLiftedToInt5 (Parser f) g = Parser
+ 
+ sequenceLiftedToInt5 ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE ('TupleRep '[ 'IntRep, 'IntRep, 'IntRep, 'IntRep, 'IntRep ])).
+      Parser s e a
+   -> Parser s e b
+@@ -406,7 +411,7 @@ sequenceLiftedToInt5 (Parser f) (Parser g) = Parser
+ 
+ bindFromLiftedToInt ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE 'IntRep).
+      Parser s e a
+   -> (a -> Parser s e b)
+@@ -422,7 +427,7 @@ bindFromLiftedToInt (Parser f) g = Parser
+ 
+ sequenceLiftedToInt ::
+      forall s e
+-       (a :: TYPE 'LiftedRep)
++       (a :: TYPE LiftedRep)
+        (b :: TYPE 'IntRep).
+      Parser s e a
+   -> Parser s e b
+diff --git a/src/Data/Bytes/Parser/Utf8.hs b/src/Data/Bytes/Parser/Utf8.hs
+index 779009a..44b8997 100644
+--- a/src/Data/Bytes/Parser/Utf8.hs
++++ b/src/Data/Bytes/Parser/Utf8.hs
+@@ -1,5 +1,6 @@
+ {-# language BangPatterns #-}
+ {-# language BinaryLiterals #-}
++{-# language CPP #-}
+ {-# language DataKinds #-}
+ {-# language DeriveFunctor #-}
+ {-# language DerivingStrategies #-}
+@@ -46,8 +47,8 @@ any# e = Parser
+   (\(# arr, off, len #) s0 -> case len ># 0# of
+     1# ->
+       let !w0 = Exts.indexWord8Array# arr off
+-       in if | oneByteChar (W8# w0) -> 
+-                 (# s0, (# | (# chr# (Exts.word2Int# w0), off +# 1#, len -# 1# #) #) #)
++       in if | oneByteChar (W8# w0) ->
++                 (# s0, (# | (# chr# (Exts.word2Int# (word8ToWordCompat# w0)), off +# 1#, len -# 1# #) #) #)
+              | twoByteChar (W8# w0) ->
+                  if | I# len > 1
+                     , w1 <- Exts.indexWord8Array# arr (off +# 1#)
+@@ -81,9 +82,9 @@ codepointFromFourBytes :: Word8 -> Word8 -> Word8 -> Word8 -> Char
+ codepointFromFourBytes w1 w2 w3 w4 = C#
+   ( chr#
+     ( unI $ fromIntegral
+-      ( unsafeShiftL (word8ToWord w1 .&. 0b00001111) 18 .|. 
+-        unsafeShiftL (word8ToWord w2 .&. 0b00111111) 12 .|. 
+-        unsafeShiftL (word8ToWord w3 .&. 0b00111111) 6 .|. 
++      ( unsafeShiftL (word8ToWord w1 .&. 0b00001111) 18 .|.
++        unsafeShiftL (word8ToWord w2 .&. 0b00111111) 12 .|.
++        unsafeShiftL (word8ToWord w3 .&. 0b00111111) 6 .|.
+         (word8ToWord w4 .&. 0b00111111)
+       )
+     )
+@@ -93,8 +94,8 @@ codepointFromThreeBytes :: Word8 -> Word8 -> Word8 -> Char
+ codepointFromThreeBytes w1 w2 w3 = C#
+   ( chr#
+     ( unI $ fromIntegral
+-      ( unsafeShiftL (word8ToWord w1 .&. 0b00001111) 12 .|. 
+-        unsafeShiftL (word8ToWord w2 .&. 0b00111111) 6 .|. 
++      ( unsafeShiftL (word8ToWord w1 .&. 0b00001111) 12 .|.
++        unsafeShiftL (word8ToWord w2 .&. 0b00111111) 6 .|.
+         (word8ToWord w3 .&. 0b00111111)
+       )
+     )
+@@ -104,7 +105,7 @@ codepointFromTwoBytes :: Word8 -> Word8 -> Char
+ codepointFromTwoBytes w1 w2 = C#
+   ( chr#
+     ( unI $ fromIntegral @Word @Int
+-      ( unsafeShiftL (word8ToWord w1 .&. 0b00011111) 6 .|. 
++      ( unsafeShiftL (word8ToWord w1 .&. 0b00011111) 6 .|.
+         (word8ToWord w2 .&. 0b00111111)
+       )
+     )
+@@ -141,3 +142,11 @@ shortByteStringToByteArray ::
+      BSS.ShortByteString
+   -> PM.ByteArray
+ shortByteStringToByteArray (BSS.SBS x) = PM.ByteArray x
++
++#if MIN_VERSION_base(4,16,0)
++word8ToWordCompat# :: Exts.Word8# -> Exts.Word#
++word8ToWordCompat# = Exts.word8ToWord#
++#else
++word8ToWordCompat# :: Exts.Word# -> Exts.Word#
++word8ToWordCompat# x = x
++#endif

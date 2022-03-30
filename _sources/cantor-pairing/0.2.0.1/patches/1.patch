@@ -1,0 +1,31 @@
+diff --git a/src/Cantor.hs b/src/Cantor.hs
+index 88c9965..8e11539 100644
+--- a/src/Cantor.hs
++++ b/src/Cantor.hs
+@@ -1,5 +1,6 @@
+ {-# LANGUAGE AllowAmbiguousTypes #-}
+ {-# LANGUAGE BangPatterns #-}
++{-# LANGUAGE CPP #-}
+ {-# LANGUAGE DefaultSignatures #-}
+ {-# LANGUAGE DeriveGeneric #-}
+ {-# LANGUAGE FlexibleContexts #-}
+@@ -372,7 +373,9 @@ instance Cantor a => Cantor (Last a)
+ instance Cantor a => Cantor (First a)
+ instance Cantor a => Cantor (Identity a)
+ instance Cantor a => Cantor (Data.Functor.Const.Const a b)
++#if !(MIN_VERSION_base(4,16,0))
+ instance Cantor a => Cantor (Option a)
++#endif
+ instance Cantor a => Cantor (Min a)
+ instance Cantor a => Cantor (Max a)
+ instance Cantor (Proxy a)
+@@ -394,7 +397,9 @@ instance Finite a => Finite (Last a)
+ instance Finite a => Finite (First a)
+ instance Finite a => Finite (Identity a)
+ instance Finite a => Finite (Data.Functor.Const.Const a b)
++#if !(MIN_VERSION_base(4,16,0))
+ instance Finite a => Finite (Option a)
++#endif
+ instance Finite a => Finite (Min a)
+ instance Finite a => Finite (Max a)
+ instance Finite (Proxy a)

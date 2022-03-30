@@ -1,0 +1,44 @@
+diff --git a/src/Data/Enumeration.hs b/src/Data/Enumeration.hs
+index a498ca5..ef6a106 100644
+--- a/src/Data/Enumeration.hs
++++ b/src/Data/Enumeration.hs
+@@ -143,7 +143,7 @@ module Data.Enumeration(
+        ) where
+ 
+ import Control.Exception
+-import Data.List
++import qualified Data.List as L
+ import Data.ArithEncode hiding (singleton)
+ import Data.Typeable
+ 
+@@ -184,7 +184,7 @@ instance Show BadPath where
+ instance Exception BadPath
+ 
+ showPath :: Path -> String
+-showPath = intercalate "." . map show
++showPath = L.intercalate "." . map show
+ 
+ -- | Create an 'Enumeration' with an empty prefix that maps a single
+ -- value to and from the empty path.  Equivalent to
+@@ -247,7 +247,7 @@ fromEncodingWithPrefix prefixPath enc =
+     toPathFunc val = [encode enc val]
+     toSizedPathFunc val = [(encode enc val, size enc)]
+ 
+-    withPrefixFunc newPrefix @ [encoded] =
++    withPrefixFunc newPrefix@[encoded] =
+       singletonWithPrefix (prefixPath ++ newPrefix) (decode enc encoded)
+     withPrefixFunc [] = out
+     withPrefixFunc (_ : path) =
+diff --git a/src/Data/Enumeration/Traversal.hs b/src/Data/Enumeration/Traversal.hs
+index 58fcab9..b03d5e8 100644
+--- a/src/Data/Enumeration/Traversal.hs
++++ b/src/Data/Enumeration/Traversal.hs
+@@ -174,7 +174,7 @@ inverseDepth (enum, curr) =
+ instance Traversal Prioritized where
+   mkTraversal = mkPrioritizedTraversal inverseDepth
+ 
+-  getNext pri @ Prioritized { scoring = scorefunc, priHeap = heap } =
++  getNext pri@Prioritized { scoring = scorefunc, priHeap = heap } =
+     case Heap.view heap of
+       Just ((_, (enum, curr)), rest) ->
+         case numBranches enum of

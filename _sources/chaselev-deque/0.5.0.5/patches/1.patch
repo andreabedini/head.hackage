@@ -1,0 +1,26 @@
+diff --git a/Data/Concurrent/Deque/ChaseLev.hs b/Data/Concurrent/Deque/ChaseLev.hs
+index 5a21a5b..071f4b7 100644
+--- a/Data/Concurrent/Deque/ChaseLev.hs
++++ b/Data/Concurrent/Deque/ChaseLev.hs
+@@ -40,7 +40,7 @@ import System.IO.Unsafe (unsafePerformIO)
+ import Text.Printf (printf)
+ import System.Mem.StableName (makeStableName, hashStableName)
+ import GHC.Exts (Int(I#))
+-import GHC.Prim (reallyUnsafePtrEquality#, unsafeCoerce#)
++import GHC.Exts (reallyUnsafePtrEquality#, unsafeCoerce#)
+ 
+ --------------------------------------------------------------------------------
+ -- Instances
+diff --git a/Data/Concurrent/Deque/ChaseLevUnboxed.hs b/Data/Concurrent/Deque/ChaseLevUnboxed.hs
+index 2817f7a..ef268a0 100644
+--- a/Data/Concurrent/Deque/ChaseLevUnboxed.hs
++++ b/Data/Concurrent/Deque/ChaseLevUnboxed.hs
+@@ -42,7 +42,7 @@ import System.IO.Unsafe (unsafePerformIO)
+ import Text.Printf (printf)
+ import System.Mem.StableName (makeStableName, hashStableName)
+ import GHC.Exts (Int(I#))
+-import GHC.Prim (reallyUnsafePtrEquality#, unsafeCoerce#)
++import GHC.Exts (reallyUnsafePtrEquality#, unsafeCoerce#)
+ 
+ --------------------------------------------------------------------------------
+ -- Instances

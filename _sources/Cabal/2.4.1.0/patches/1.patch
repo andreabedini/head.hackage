@@ -1,0 +1,259 @@
+diff --git a/Distribution/Compat/Prelude.hs b/Distribution/Compat/Prelude.hs
+index d032825..ecffbbc 100644
+--- a/Distribution/Compat/Prelude.hs
++++ b/Distribution/Compat/Prelude.hs
+@@ -140,7 +140,7 @@ import qualified Text.PrettyPrint as Disp
+ import qualified Prelude as OrigPrelude
+ import Distribution.Compat.Stack
+ 
+-type IO a = WithCallStack (OrigPrelude.IO a)
++type IO a = OrigPrelude.IO a
+ type NoCallStackIO a = OrigPrelude.IO a
+ 
+ -- | New name for 'Text.PrettyPrint.<>'
+diff --git a/Distribution/Compat/ReadP.hs b/Distribution/Compat/ReadP.hs
+index 1f5a989..e314592 100644
+--- a/Distribution/Compat/ReadP.hs
++++ b/Distribution/Compat/ReadP.hs
+@@ -1,3 +1,4 @@
++{-# LANGUAGE CPP   #-}
+ {-# LANGUAGE GADTs #-}
+ -----------------------------------------------------------------------------
+ -- |
+@@ -113,7 +114,9 @@ instance Monad (P s) where
+   (Result x p) >>= k = k x `mplus` (p >>= k)
+   (Final r)    >>= k = final [ys' | (x,s) <- r, ys' <- run (k x) s]
+ 
++#if !(MIN_VERSION_base(4,13,0))
+   fail = Fail.fail
++#endif
+ 
+ instance Fail.MonadFail (P s) where
+   fail _ = Fail
+@@ -172,7 +175,9 @@ instance s ~ Char => Alternative (Parser r s) where
+ 
+ instance Monad (Parser r s) where
+   return = pure
++#if !(MIN_VERSION_base(4,13,0))
+   fail = Fail.fail
++#endif
+   R m >>= f = R (\k -> m (\a -> let R m' = f a in m' k))
+ 
+ instance Fail.MonadFail (Parser r s) where
+diff --git a/Distribution/FieldGrammar/FieldDescrs.hs b/Distribution/FieldGrammar/FieldDescrs.hs
+index 4bd50d4..ce85fc0 100644
+--- a/Distribution/FieldGrammar/FieldDescrs.hs
++++ b/Distribution/FieldGrammar/FieldDescrs.hs
+@@ -44,7 +44,7 @@ fieldDescrPretty (F m) fn = pPretty <$> Map.lookup fn m
+ 
+ -- | Lookup a field value parser.
+ fieldDescrParse :: P.CabalParsing m => FieldDescrs s a -> String -> Maybe (s -> m s)
+-fieldDescrParse (F m) fn = pParse <$> Map.lookup fn m
++fieldDescrParse (F m) fn = (\f -> pParse f) <$> Map.lookup fn m
+ 
+ fieldDescrsToList
+     :: P.CabalParsing m
+diff --git a/Distribution/ParseUtils.hs b/Distribution/ParseUtils.hs
+index 0e79049..f4b805c 100644
+--- a/Distribution/ParseUtils.hs
++++ b/Distribution/ParseUtils.hs
+@@ -19,6 +19,7 @@
+ -- This module is meant to be local-only to Distribution...
+ 
+ {-# OPTIONS_HADDOCK hide #-}
++{-# LANGUAGE CPP        #-}
+ {-# LANGUAGE Rank2Types #-}
+ module Distribution.ParseUtils (
+         LineNo, PError(..), PWarning(..), locatedErrorMsg, syntaxError, warning,
+@@ -107,7 +108,9 @@ instance Monad ParseResult where
+         ParseOk ws x >>= f = case f x of
+                                ParseFailed err -> ParseFailed err
+                                ParseOk ws' x' -> ParseOk (ws'++ws) x'
++#if !(MIN_VERSION_base(4,13,0))
+         fail = Fail.fail
++#endif
+ 
+ instance Fail.MonadFail ParseResult where
+         fail s = ParseFailed (FromString s Nothing)
+diff --git a/Distribution/Parsec/Class.hs b/Distribution/Parsec/Class.hs
+index d65ea54..d182360 100644
+--- a/Distribution/Parsec/Class.hs
++++ b/Distribution/Parsec/Class.hs
+@@ -1,3 +1,4 @@
++{-# LANGUAGE CPP                 #-}
+ {-# LANGUAGE GADTs               #-}
+ {-# LANGUAGE FlexibleContexts    #-}
+ {-# LANGUAGE RankNTypes          #-}
+@@ -55,7 +56,7 @@ class Parsec a where
+ --
+ -- * knows @cabal-version@ we work with
+ --
+-class (P.CharParsing m, MonadPlus m) => CabalParsing m where
++class (P.CharParsing m, MonadPlus m, Fail.MonadFail m) => CabalParsing m where
+     parsecWarning :: PWarnType -> String -> m ()
+ 
+     parsecHaskellString :: m String
+@@ -116,7 +117,9 @@ instance Monad ParsecParser where
+     (>>) = (*>)
+     {-# INLINE (>>) #-}
+ 
++#if !(MIN_VERSION_base(4,13,0))
+     fail = Fail.fail
++#endif
+ 
+ instance MonadPlus ParsecParser where
+     mzero = empty
+diff --git a/Distribution/Parsec/Lexer.hs b/Distribution/Parsec/Lexer.hs
+index 64f5222..20781a4 100644
+--- a/Distribution/Parsec/Lexer.hs
++++ b/Distribution/Parsec/Lexer.hs
+@@ -230,35 +230,35 @@ alex_action_0 =  \_ len _ -> do
+               when (len /= 0) $ addWarning LexWarningBOM
+               setStartCode bol_section
+               lexToken
+-         
+-alex_action_1 =  \_pos len inp -> checkWhitespace len inp >> adjustPos retPos >> lexToken 
++
++alex_action_1 =  \_pos len inp -> checkWhitespace len inp >> adjustPos retPos >> lexToken
+ alex_action_3 =  \pos len inp -> checkLeadingWhitespace len inp >>
+                                      if B.length inp == len
+                                        then return (L pos EOF)
+                                        else setStartCode in_section
+-                                         >> return (L pos (Indent len)) 
+-alex_action_4 =  tok  OpenBrace 
+-alex_action_5 =  tok  CloseBrace 
+-alex_action_8 =  toki TokSym 
+-alex_action_9 =  \pos len inp -> return $! L pos (TokStr (B.take (len - 2) (B.tail inp))) 
+-alex_action_10 =  toki TokOther 
+-alex_action_11 =  toki TokOther 
+-alex_action_12 =  tok  Colon 
+-alex_action_13 =  tok  OpenBrace 
+-alex_action_14 =  tok  CloseBrace 
+-alex_action_15 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_section >> lexToken 
++                                         >> return (L pos (Indent len))
++alex_action_4 =  tok  OpenBrace
++alex_action_5 =  tok  CloseBrace
++alex_action_8 =  toki TokSym
++alex_action_9 =  \pos len inp -> return $! L pos (TokStr (B.take (len - 2) (B.tail inp)))
++alex_action_10 =  toki TokOther
++alex_action_11 =  toki TokOther
++alex_action_12 =  tok  Colon
++alex_action_13 =  tok  OpenBrace
++alex_action_14 =  tok  CloseBrace
++alex_action_15 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_section >> lexToken
+ alex_action_16 =  \pos len inp -> checkLeadingWhitespace len inp >>= \len' ->
+                                   if B.length inp == len
+                                     then return (L pos EOF)
+                                     else setStartCode in_field_layout
+-                                      >> return (L pos (Indent len')) 
+-alex_action_18 =  toki TokFieldLine 
+-alex_action_19 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_layout >> lexToken 
+-alex_action_20 =  \_ _ _ -> setStartCode in_field_braces >> lexToken 
+-alex_action_22 =  toki TokFieldLine 
+-alex_action_23 =  tok  OpenBrace  
+-alex_action_24 =  tok  CloseBrace 
+-alex_action_25 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_braces >> lexToken 
++                                      >> return (L pos (Indent len'))
++alex_action_18 =  toki TokFieldLine
++alex_action_19 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_layout >> lexToken
++alex_action_20 =  \_ _ _ -> setStartCode in_field_braces >> lexToken
++alex_action_22 =  toki TokFieldLine
++alex_action_23 =  tok  OpenBrace
++alex_action_24 =  tok  CloseBrace
++alex_action_25 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_braces >> lexToken
+ {-# LINE 1 "templates/GenericTemplate.hs" #-}
+ {-# LINE 1 "templates/GenericTemplate.hs" #-}
+ {-# LINE 1 "<built-in>" #-}
+@@ -310,11 +310,14 @@ alexIndexInt16OffAddr (AlexA# arr) off =
+         low  = int2Word# (ord# (indexCharOffAddr# arr off'))
+         off' = off *# 2#
+ #else
+-  indexInt16OffAddr# arr off
++#if __GLASGOW_HASKELL__ >= 901
++  int16ToInt#
++#endif
++    (indexInt16OffAddr# arr off)
+ #endif
+ 
+ {-# INLINE alexIndexInt32OffAddr #-}
+-alexIndexInt32OffAddr (AlexA# arr) off = 
++alexIndexInt32OffAddr (AlexA# arr) off =
+ #ifdef WORDS_BIGENDIAN
+   narrow32Int# i
+   where
+@@ -327,7 +330,10 @@ alexIndexInt32OffAddr (AlexA# arr) off =
+    b0   = int2Word# (ord# (indexCharOffAddr# arr off'))
+    off' = off *# 4#
+ #else
+-  indexInt32OffAddr# arr off
++#if __GLASGOW_HASKELL__ >= 901
++  int32ToInt#
++#endif
++    (indexInt32OffAddr# arr off)
+ #endif
+ 
+ #if __GLASGOW_HASKELL__ < 503
+@@ -354,7 +360,7 @@ alexScanUser user input (I# (sc))
+   = case alex_scan_tkn user input 0# input sc AlexNone of
+         (AlexNone, input') ->
+                 case alexGetByte input of
+-                        Nothing -> 
++                        Nothing ->
+ 
+                                    AlexEOF
+                         Just _ ->
+@@ -374,20 +380,20 @@ alexScanUser user input (I# (sc))
+ 
+ alex_scan_tkn user orig_input len input s last_acc =
+   input `seq` -- strict in the input
+-  let 
++  let
+         new_acc = (check_accs (alex_accept `quickIndex` (I# (s))))
+   in
+   new_acc `seq`
+   case alexGetByte input of
+      Nothing -> (new_acc, input)
+-     Just (c, new_input) -> 
++     Just (c, new_input) ->
+ 
+       case fromIntegral c of { (I# (ord_c)) ->
+         let
+                 base   = alexIndexInt32OffAddr alex_base s
+                 offset = (base +# ord_c)
+                 check  = alexIndexInt16OffAddr alex_check offset
+-                
++
+                 new_s = if GTE(offset,0#) && EQ(check,ord_c)
+                           then alexIndexInt16OffAddr alex_table offset
+                           else alexIndexInt16OffAddr alex_deflt s
+diff --git a/Distribution/Simple/Utils.hs b/Distribution/Simple/Utils.hs
+index 871a3e9..d2f45d8 100644
+--- a/Distribution/Simple/Utils.hs
++++ b/Distribution/Simple/Utils.hs
+@@ -1360,7 +1360,7 @@ withTempFileEx opts tmpDir template action =
+     (\(name, handle) -> do hClose handle
+                            unless (optKeepTempFiles opts) $
+                              handleDoesNotExist () . removeFile $ name)
+-    (withLexicalCallStack (uncurry action))
++    (withLexicalCallStack (\x -> uncurry action x))
+ 
+ -- | Create and use a temporary directory.
+ --
+@@ -1375,7 +1375,7 @@ withTempFileEx opts tmpDir template action =
+ withTempDirectory :: Verbosity -> FilePath -> String -> (FilePath -> IO a) -> IO a
+ withTempDirectory verbosity targetDir template f = withFrozenCallStack $
+   withTempDirectoryEx verbosity defaultTempFileOptions targetDir template
+-    (withLexicalCallStack f)
++    (withLexicalCallStack (\x -> f x))
+ 
+ -- | A version of 'withTempDirectory' that additionally takes a
+ -- 'TempFileOptions' argument.
+@@ -1386,7 +1386,7 @@ withTempDirectoryEx _verbosity opts targetDir template f = withFrozenCallStack $
+     (createTempDirectory targetDir template)
+     (unless (optKeepTempFiles opts)
+      . handleDoesNotExist () . removeDirectoryRecursive)
+-    (withLexicalCallStack f)
++    (withLexicalCallStack (\x -> f x))
+ 
+ -----------------------------------
+ -- Safely reading and writing files

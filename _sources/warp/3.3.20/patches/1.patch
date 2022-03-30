@@ -1,0 +1,29 @@
+diff --git a/Network/Wai/Handler/Warp/Settings.hs b/Network/Wai/Handler/Warp/Settings.hs
+index 7c4dd03..955e207 100644
+--- a/Network/Wai/Handler/Warp/Settings.hs
++++ b/Network/Wai/Handler/Warp/Settings.hs
+@@ -28,6 +28,10 @@ import System.TimeManager
+ import Network.Wai.Handler.Warp.Imports
+ import Network.Wai.Handler.Warp.Types
+ 
++#if __GLASGOW_HASKELL__ >= 903
++import GHC.IO (unIO)
++#endif
++
+ -- | Various Warp server settings. This is purposely kept as an abstract data
+ -- type so that new settings can be added without breaking backwards
+ -- compatibility. In order to create a 'Settings' value, use 'defaultSettings'
+@@ -250,6 +254,12 @@ exceptionResponseForDebug e =
+ defaultFork :: ((forall a. IO a -> IO a) -> IO ()) -> IO ()
+ defaultFork io =
+   IO $ \s0 ->
+-    case (fork# (io unsafeUnmask) s0) of
++    case (fork#
++#if __GLASGOW_HASKELL__ >= 903
++           (unIO (io unsafeUnmask))
++#else
++           (io unsafeUnmask)
++#endif
++           s0) of
+       (# s1, _tid #) ->
+         (# s1, () #)

@@ -1,0 +1,18 @@
+diff --git a/src/Text/Heterocephalus.hs b/src/Text/Heterocephalus.hs
+index 5d8c95d..1347cb5 100644
+--- a/src/Text/Heterocephalus.hs
++++ b/src/Text/Heterocephalus.hs
+@@ -575,7 +575,12 @@ bindingPattern (BindList is) = do
+   return (ListP patterns, concat scopes)
+ bindingPattern (BindConstr con is) = do
+   (patterns, scopes) <- fmap unzip $ mapM bindingPattern is
+-  return (ConP (mkConName con) patterns, concat scopes)
++  return (ConP (mkConName con)
++-- TODO: Use MIN_VERSION_template_haskell(2,18,0) here (see https://gitlab.haskell.org/ghc/ghc/-/issues/19083)
++#if __GLASGOW_HASKELL__ >= 901
++               []
++#endif
++               patterns, concat scopes)
+ bindingPattern (BindRecord con fields wild) = do
+   let f (Ident field, b) = do
+         (p, s) <- bindingPattern b

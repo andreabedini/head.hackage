@@ -1,0 +1,56 @@
+diff --git a/Control/Concurrent/Raw.hs b/Control/Concurrent/Raw.hs
+index 58dbf8e..729bd2c 100644
+--- a/Control/Concurrent/Raw.hs
++++ b/Control/Concurrent/Raw.hs
+@@ -1,3 +1,4 @@
++{-# LANGUAGE CPP #-}
+ {-# LANGUAGE NoImplicitPrelude, MagicHash, UnboxedTuples #-}
+ 
+ module Control.Concurrent.Raw ( rawForkIO, rawForkOn ) where
+@@ -7,15 +8,31 @@ import GHC.IO        ( IO(IO) )
+ import GHC.Exts      ( Int(I#), fork#, forkOn# )
+ import GHC.Conc      ( ThreadId(ThreadId) )
+ 
++#if __GLASGOW_HASKELL__ >= 903
++import GHC.IO        ( unIO )
++#endif
++
+ -- A version of forkIO that does not include the outer exception
+ -- handler: saves a bit of time when we will be installing our own
+ -- exception handler.
+ {-# INLINE rawForkIO #-}
+ rawForkIO :: IO () -> IO ThreadId
+ rawForkIO action = IO $ \s ->
+-   case (fork# action s) of (# s1, tid #) -> (# s1, ThreadId tid #)
++   case (fork#
++#if __GLASGOW_HASKELL__ >= 903
++           (unIO action)
++#else
++           action
++#endif
++           s) of (# s1, tid #) -> (# s1, ThreadId tid #)
+ 
+ {-# INLINE rawForkOn #-}
+ rawForkOn :: Int -> IO () -> IO ThreadId
+ rawForkOn (I# cpu) action = IO $ \s ->
+-   case (forkOn# cpu action s) of (# s1, tid #) -> (# s1, ThreadId tid #)
++   case (forkOn# cpu
++#if __GLASGOW_HASKELL__ >= 903
++           (unIO action)
++#else
++           action
++#endif
++           s) of (# s1, tid #) -> (# s1, ThreadId tid #)
+diff --git a/threads.cabal b/threads.cabal
+index 053c5fb..34cda3b 100644
+--- a/threads.cabal
++++ b/threads.cabal
+@@ -51,7 +51,7 @@ source-repository head
+   Location: git://github.com/basvandijk/threads.git
+ 
+ custom-setup
+-    setup-depends: base >= 4.4 && < 5, Cabal >= 1.12
++  setup-depends: base >= 4.4 && < 5, Cabal < 3.7
+ 
+ -------------------------------------------------------------------------------
+ 

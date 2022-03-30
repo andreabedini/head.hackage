@@ -1,0 +1,36 @@
+diff --git a/src/Generic/Data/Internal/Generically.hs b/src/Generic/Data/Internal/Generically.hs
+index 52ef868..fbaecd6 100644
+--- a/src/Generic/Data/Internal/Generically.hs
++++ b/src/Generic/Data/Internal/Generically.hs
+@@ -22,6 +22,9 @@ import Data.Functor.Classes
+ import Data.Semigroup
+ import Data.Ix
+ import GHC.Generics
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (Generically, Generically1)
++#endif
+ import Text.Read
+ 
+ import Generic.Data.Internal.Prelude hiding (gfoldMap, gtraverse, gsequenceA)
+diff --git a/src/Generic/Data/Internal/Microsurgery.hs b/src/Generic/Data/Internal/Microsurgery.hs
+index b87d8d4..672cb5d 100644
+--- a/src/Generic/Data/Internal/Microsurgery.hs
++++ b/src/Generic/Data/Internal/Microsurgery.hs
+@@ -9,6 +9,7 @@
+     TypeFamilies,
+     TypeOperators,
+     UndecidableInstances #-}
++{-# LANGUAGE CPP #-}
+ 
+ -- | Surgeries that are just 'coerce'.
+ --
+@@ -24,6 +25,9 @@ module Generic.Data.Internal.Microsurgery where
+ 
+ import Data.Coerce (Coercible, coerce)
+ import GHC.Generics
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (Generically, Generically1)
++#endif
+ import GHC.TypeLits (ErrorMessage(..), Symbol, TypeError)
+ 
+ import Generic.Data.Types (Data)

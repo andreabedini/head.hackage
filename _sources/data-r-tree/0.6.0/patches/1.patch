@@ -1,0 +1,33 @@
+diff --git a/Data/RTree/Base.hs b/Data/RTree/Base.hs
+index 36c041b..9df462f 100644
+--- a/Data/RTree/Base.hs
++++ b/Data/RTree/Base.hs
+@@ -83,11 +83,11 @@ import           Prelude         hiding (length, lookup, map, null)
+ import           Data.RTree.MBB  hiding (mbb)
+ 
+ data RTree a =
+-      Node4 {getMBB :: {-# UNPACK #-} ! MBB, getC1 :: ! (RTree a), getC2 :: ! (RTree a), getC3 :: ! (RTree a), getC4 :: ! (RTree a) }
+-    | Node3 {getMBB :: {-# UNPACK #-} ! MBB, getC1 :: ! (RTree a), getC2 :: ! (RTree a), getC3 :: ! (RTree a) }
+-    | Node2 {getMBB :: {-# UNPACK #-} ! MBB, getC1 :: ! (RTree a), getC2 :: ! (RTree a) }
++      Node4 {getMBB :: {-# UNPACK #-} !MBB, getC1 :: !(RTree a), getC2 :: !(RTree a), getC3 :: !(RTree a), getC4 :: !(RTree a) }
++    | Node3 {getMBB :: {-# UNPACK #-} !MBB, getC1 :: !(RTree a), getC2 :: !(RTree a), getC3 :: !(RTree a) }
++    | Node2 {getMBB :: {-# UNPACK #-} !MBB, getC1 :: !(RTree a), getC2 :: !(RTree a) }
+     | Node  {getMBB ::                  MBB, getChildren' :: [RTree a] }
+-    | Leaf  {getMBB :: {-# UNPACK #-} ! MBB, getElem :: a}
++    | Leaf  {getMBB :: {-# UNPACK #-} !MBB, getElem :: a}
+     | Empty
+     deriving (Show, Eq, Typeable, Generic, Functor)
+ 
+diff --git a/Data/RTree/MBB.hs b/Data/RTree/MBB.hs
+index 03548dd..209cc7d 100644
+--- a/Data/RTree/MBB.hs
++++ b/Data/RTree/MBB.hs
+@@ -34,7 +34,7 @@ import Data.Binary
+ import GHC.Generics (Generic)
+ 
+ -- | Minimal bounding box
+-data MBB = MBB {getUlx :: {-# UNPACK #-} ! Double, getUly :: {-# UNPACK #-} ! Double, getBrx :: {-# UNPACK #-} ! Double, getBry :: {-# UNPACK #-} ! Double}
++data MBB = MBB {getUlx :: {-# UNPACK #-} !Double, getUly :: {-# UNPACK #-} !Double, getBrx :: {-# UNPACK #-} !Double, getBry :: {-# UNPACK #-} !Double}
+     deriving (Eq, Generic, Ord)
+ 
+ -- | created a minimal bounding box (or a rectangle)

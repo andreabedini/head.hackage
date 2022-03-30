@@ -1,0 +1,45 @@
+diff --git a/src/Data/Emacs/Module/Args.hs b/src/Data/Emacs/Module/Args.hs
+index f4af9c9..d472ee6 100644
+--- a/src/Data/Emacs/Module/Args.hs
++++ b/src/Data/Emacs/Module/Args.hs
+@@ -19,6 +19,7 @@
+ {-# LANGUAGE TypeFamilies           #-}
+ {-# LANGUAGE TypeFamilyDependencies #-}
+ {-# LANGUAGE TypeOperators          #-}
++{-# LANGUAGE UndecidableInstances   #-}
+ 
+ module Data.Emacs.Module.Args
+   ( Nat(..)
+diff --git a/src/Data/Emacs/Module/Raw/Env/TH.hs b/src/Data/Emacs/Module/Raw/Env/TH.hs
+index dfc6dd2..db02466 100644
+--- a/src/Data/Emacs/Module/Raw/Env/TH.hs
++++ b/src/Data/Emacs/Module/Raw/Env/TH.hs
+@@ -6,6 +6,7 @@
+ -- Maintainer  :  serg.foo@gmail.com
+ ----------------------------------------------------------------------------
+ 
++{-# LANGUAGE CPP                   #-}
+ {-# LANGUAGE LambdaCase            #-}
+ {-# LANGUAGE TemplateHaskellQuotes #-}
+ 
+@@ -27,11 +28,11 @@ decomposeFunctionType = go []
+       AppT (AppT ArrowT x) y -> go (x : args) y
+       ret                    -> (reverse args, ret)
+ 
+-unwrapForall :: Type -> (Maybe ([TyVarBndr], Cxt), Type)
++unwrapForall :: Type -> (Maybe ([TyVarBndrSpec], Cxt), Type)
+ unwrapForall (ForallT bs c t) = (Just (bs, c), t)
+ unwrapForall t                = (Nothing, t)
+ 
+-wrapForall :: Maybe ([TyVarBndr], Cxt) -> Type -> Type
++wrapForall :: Maybe ([TyVarBndrSpec], Cxt) -> Type -> Type
+ wrapForall Nothing        = id
+ wrapForall (Just (bs, c)) = ForallT bs c
+ 
+@@ -77,3 +78,6 @@ wrapEmacsFunc name safety peekExpr rawFuncType = do
+   where
+     name' = mkName name
+ 
++#if !(MIN_VERSION_template_haskell(2,17,0))
++type TyVarBndrSpec = TyVarBndr
++#endif

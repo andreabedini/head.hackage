@@ -1,0 +1,76 @@
+diff --git a/Foundation/Array/Bitmap.hs b/Foundation/Array/Bitmap.hs
+index 74386fb..d8c38d3 100644
+--- a/Foundation/Array/Bitmap.hs
++++ b/Foundation/Array/Bitmap.hs
+@@ -13,6 +13,7 @@
+ -- unnecessary churn.
+ --
+ {-# LANGUAGE BangPatterns #-}
++{-# LANGUAGE CPP #-}
+ {-# LANGUAGE DeriveDataTypeable #-}
+ module Foundation.Array.Bitmap
+     ( Bitmap
+@@ -43,6 +44,9 @@ import           Basement.Monad
+ import qualified Foundation.Collection as C
+ import           Foundation.Numerical
+ import           Data.Bits
++#if __GLASGOW_HASKELL__ >= 903
++  hiding ((.<<.), (.>>.))
++#endif
+ import           Foundation.Bits
+ import           GHC.ST
+ import qualified Data.List
+diff --git a/Foundation/Bits.hs b/Foundation/Bits.hs
+index 7952f35..295314d 100644
+--- a/Foundation/Bits.hs
++++ b/Foundation/Bits.hs
+@@ -1,4 +1,5 @@
+ -- Extra bits stuff
++{-# LANGUAGE CPP #-}
+ module Foundation.Bits
+     ( (.<<.)
+     , (.>>.)
+@@ -10,6 +11,9 @@ module Foundation.Bits
+ import Basement.Compat.Base
+ import Foundation.Numerical
+ import Data.Bits
++#if __GLASGOW_HASKELL__ >= 903
++  hiding ((.<<.), (.>>.))
++#endif
+ 
+ -- | Unsafe Shift Left Operator
+ (.<<.) :: Bits a => a -> Int -> a
+diff --git a/Foundation/Collection/Foldable.hs b/Foundation/Collection/Foldable.hs
+index c019000..14cf052 100644
+--- a/Foundation/Collection/Foldable.hs
++++ b/Foundation/Collection/Foldable.hs
+@@ -13,6 +13,7 @@
+ #if MIN_VERSION_base(4,9,0)
+ {-# LANGUAGE DataKinds     #-}
+ {-# LANGUAGE TypeOperators #-}
++{-# LANGUAGE UndecidableInstances #-}
+ #endif
+ 
+ module Foundation.Collection.Foldable
+diff --git a/Foundation/Hashing/SipHash.hs b/Foundation/Hashing/SipHash.hs
+index 4dae35f..0b43860 100644
+--- a/Foundation/Hashing/SipHash.hs
++++ b/Foundation/Hashing/SipHash.hs
+@@ -9,6 +9,7 @@
+ -- reference: <http://131002.net/siphash/siphash.pdf>
+ --
+ {-# LANGUAGE BangPatterns #-}
++{-# LANGUAGE CPP #-}
+ {-# LANGUAGE MagicHash #-}
+ module Foundation.Hashing.SipHash
+     ( SipKey(..)
+@@ -18,6 +19,9 @@ module Foundation.Hashing.SipHash
+     ) where
+ 
+ import           Data.Bits
++#if __GLASGOW_HASKELL__ >= 903
++  hiding ((.<<.), (.>>.))
++#endif
+ import           Basement.Compat.Base
+ import           Basement.Types.OffsetSize
+ import           Basement.PrimType

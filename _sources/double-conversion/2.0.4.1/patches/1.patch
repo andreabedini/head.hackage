@@ -1,0 +1,34 @@
+diff --git a/Data/Double/Conversion/Internal/Text.hs b/Data/Double/Conversion/Internal/Text.hs
+index cbdcdee..df4776e 100644
+--- a/Data/Double/Conversion/Internal/Text.hs
++++ b/Data/Double/Conversion/Internal/Text.hs
+@@ -52,7 +52,7 @@ convert func len act val = runST go
+ #endif
+       size <- unsafeIOToST $ act (realToFrac val) ma
+       when (size == -1) .
+-        fail $ "Data.Double.Conversion.Text." ++ func ++
++        error $ "Data.Double.Conversion.Text." ++ func ++
+                ": conversion failed (invalid precision requested)"
+       frozen <- A.unsafeFreeze buf
+       return $ Text frozen 0 (fromIntegral size)
+diff --git a/Data/Double/Conversion/Internal/TextBuilder.hs b/Data/Double/Conversion/Internal/TextBuilder.hs
+index bffe71f..5418889 100644
+--- a/Data/Double/Conversion/Internal/TextBuilder.hs
++++ b/Data/Double/Conversion/Internal/TextBuilder.hs
+@@ -29,7 +29,7 @@ import Data.Text.Internal.Builder (Builder, writeN)
+ import Foreign.C.Types (CDouble, CFloat, CInt)
+ import GHC.Prim (MutableByteArray#)
+ 
+--- | Not implemented yet 
++-- | Not implemented yet
+ convert :: (RealFloat a, RealFloat b, b ~ ForeignFloating a) => String -> CInt
+         -> (forall s. b -> MutableByteArray# s -> IO CInt)
+         -> a -> Builder
+@@ -43,6 +43,6 @@ convert func len act val = writeN (fromIntegral len) $ \(A.MArray maBa) _ -> do
+ #endif
+     size <- unsafeIOToST $ act (realToFrac val) maBa
+     when (size == -1) .
+-        fail $ "Data.Double.Conversion.Text." ++ func ++
++        error $ "Data.Double.Conversion.Text." ++ func ++
+                ": conversion failed (invalid precision requested)"
+     return ()

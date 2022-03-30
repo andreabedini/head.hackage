@@ -1,0 +1,50 @@
+diff --git a/endo.cabal b/endo.cabal
+index 02daa2d..21daf57 100644
+--- a/endo.cabal
++++ b/endo.cabal
+@@ -1,5 +1,6 @@
+ name:                   endo
+ version:                0.3.0.1
++x-revision: 1
+ synopsis:               Endomorphism utilities.
+ description:
+   Package defines extra functions for 'Data.Monoid.Endo' data type, and also
+@@ -103,7 +104,7 @@ library
+     -- }}} Distributed with GHC or Haskell Platform ---------------------------
+ 
+     , between >=0.9 && <1
+-    , data-default-class ==0.0.*
++    , data-default-class ==0.0.* || ==0.1.*
+ 
+   if impl(GHC >=7.8)
+     cpp-options:
+diff --git a/src/Data/Monoid/Endo/AnEndo.hs b/src/Data/Monoid/Endo/AnEndo.hs
+index b611f98..0134879 100644
+--- a/src/Data/Monoid/Endo/AnEndo.hs
++++ b/src/Data/Monoid/Endo/AnEndo.hs
+@@ -82,7 +82,9 @@ import Data.Monoid
+     , (<>)
+     )
+ #ifdef HAVE_SEMIGROUPS
++# if !(MIN_VERSION_base(4,16,0))
+ import Data.Semigroup (Option(Option))
++# endif
+ #endif
+ import Data.Traversable (Traversable)
+ import GHC.Generics (Generic, Generic1)
+@@ -201,6 +203,7 @@ instance AnEndo (Proxy a) where
+ #endif
+ 
+ #ifdef HAVE_SEMIGROUPS
++# if !(MIN_VERSION_base(4,16,0))
+ -- | Has same semantics as 'Maybe' and it is actually defined in terms of
+ -- 'AnEndo' instance for 'Maybe'.
+ instance AnEndo a => AnEndo (Option a) where
+@@ -208,6 +211,7 @@ instance AnEndo a => AnEndo (Option a) where
+ 
+     anEndo (Option maybe) = anEndo maybe
+     aDualEndo (Option maybe) = aDualEndo maybe
++# endif
+ #endif
+ 
+ -- {{{ Foldable Instances -----------------------------------------------------

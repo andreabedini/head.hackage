@@ -1,0 +1,17 @@
+diff --git a/Text/PrettyPrint/FPretty.hs b/Text/PrettyPrint/FPretty.hs
+index f2c0001..6138d3f 100644
+--- a/Text/PrettyPrint/FPretty.hs
++++ b/Text/PrettyPrint/FPretty.hs
+@@ -112,7 +112,11 @@ module Text.PrettyPrint.FPretty
+ 
+ #if __GLASGOW_HASKELL__ >= 710
+ -- The base libraries from GHC 7.10 onwards export <$> as synonym for fmap.
+-import Prelude hiding ((<$>))
++import Prelude hiding ( (<$>)
++# if MIN_VERSION_base(4,11,0)
++                      , (<>)
++# endif
++                      )
+ #endif
+ 
+ import Data.Maybe (fromJust)

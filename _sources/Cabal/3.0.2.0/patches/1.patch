@@ -1,0 +1,142 @@
+diff --git a/Distribution/Compat/Prelude.hs b/Distribution/Compat/Prelude.hs
+index c3bc040..166e58d 100644
+--- a/Distribution/Compat/Prelude.hs
++++ b/Distribution/Compat/Prelude.hs
+@@ -158,7 +158,7 @@ import qualified Text.PrettyPrint as Disp
+ import qualified Prelude as OrigPrelude
+ import Distribution.Compat.Stack
+ 
+-type IO a = WithCallStack (OrigPrelude.IO a)
++type IO a = OrigPrelude.IO a
+ type NoCallStackIO a = OrigPrelude.IO a
+ 
+ -- | New name for 'Text.PrettyPrint.<>'
+diff --git a/Distribution/FieldGrammar/FieldDescrs.hs b/Distribution/FieldGrammar/FieldDescrs.hs
+index b1d23db..82e58e6 100644
+--- a/Distribution/FieldGrammar/FieldDescrs.hs
++++ b/Distribution/FieldGrammar/FieldDescrs.hs
+@@ -45,7 +45,7 @@ fieldDescrPretty (F m) fn = pPretty <$> Map.lookup fn m
+ 
+ -- | Lookup a field value parser.
+ fieldDescrParse :: P.CabalParsing m => FieldDescrs s a -> P.FieldName -> Maybe (s -> m s)
+-fieldDescrParse (F m) fn = pParse <$> Map.lookup fn m
++fieldDescrParse (F m) fn = (\f -> pParse f) <$> Map.lookup fn m
+ 
+ fieldDescrsToList
+     :: P.CabalParsing m
+diff --git a/Distribution/Fields/Lexer.hs b/Distribution/Fields/Lexer.hs
+index 9116ce3..169c676 100644
+--- a/Distribution/Fields/Lexer.hs
++++ b/Distribution/Fields/Lexer.hs
+@@ -317,35 +317,35 @@ alex_action_0 =  \_ len _ -> do
+               when (len /= 0) $ addWarning LexWarningBOM
+               setStartCode bol_section
+               lexToken
+-         
+-alex_action_1 =  \_pos len inp -> checkWhitespace len inp >> adjustPos retPos >> lexToken 
++
++alex_action_1 =  \_pos len inp -> checkWhitespace len inp >> adjustPos retPos >> lexToken
+ alex_action_3 =  \pos len inp -> checkLeadingWhitespace len inp >>
+                                      if B.length inp == len
+                                        then return (L pos EOF)
+                                        else setStartCode in_section
+-                                         >> return (L pos (Indent len)) 
+-alex_action_4 =  tok  OpenBrace 
+-alex_action_5 =  tok  CloseBrace 
+-alex_action_8 =  toki TokSym 
+-alex_action_9 =  \pos len inp -> return $! L pos (TokStr (B.take (len - 2) (B.tail inp))) 
+-alex_action_10 =  toki TokOther 
+-alex_action_11 =  toki TokOther 
+-alex_action_12 =  tok  Colon 
+-alex_action_13 =  tok  OpenBrace 
+-alex_action_14 =  tok  CloseBrace 
+-alex_action_15 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_section >> lexToken 
++                                         >> return (L pos (Indent len))
++alex_action_4 =  tok  OpenBrace
++alex_action_5 =  tok  CloseBrace
++alex_action_8 =  toki TokSym
++alex_action_9 =  \pos len inp -> return $! L pos (TokStr (B.take (len - 2) (B.tail inp)))
++alex_action_10 =  toki TokOther
++alex_action_11 =  toki TokOther
++alex_action_12 =  tok  Colon
++alex_action_13 =  tok  OpenBrace
++alex_action_14 =  tok  CloseBrace
++alex_action_15 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_section >> lexToken
+ alex_action_16 =  \pos len inp -> checkLeadingWhitespace len inp >>= \len' ->
+                                   if B.length inp == len
+                                     then return (L pos EOF)
+                                     else setStartCode in_field_layout
+-                                      >> return (L pos (Indent len')) 
+-alex_action_18 =  toki TokFieldLine 
+-alex_action_19 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_layout >> lexToken 
+-alex_action_20 =  \_ _ _ -> setStartCode in_field_braces >> lexToken 
+-alex_action_22 =  toki TokFieldLine 
+-alex_action_23 =  tok  OpenBrace  
+-alex_action_24 =  tok  CloseBrace 
+-alex_action_25 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_braces >> lexToken 
++                                      >> return (L pos (Indent len'))
++alex_action_18 =  toki TokFieldLine
++alex_action_19 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_layout >> lexToken
++alex_action_20 =  \_ _ _ -> setStartCode in_field_braces >> lexToken
++alex_action_22 =  toki TokFieldLine
++alex_action_23 =  tok  OpenBrace
++alex_action_24 =  tok  CloseBrace
++alex_action_25 =  \_ _ _ -> adjustPos retPos >> setStartCode bol_field_braces >> lexToken
+ {-# LINE 1 "templates/GenericTemplate.hs" #-}
+ -- -----------------------------------------------------------------------------
+ -- ALEX TEMPLATE
+@@ -381,7 +381,10 @@ alexIndexInt16OffAddr (AlexA# arr) off =
+         low  = int2Word# (ord# (indexCharOffAddr# arr off'))
+         off' = off *# 2#
+ #else
+-  indexInt16OffAddr# arr off
++#if __GLASGOW_HASKELL__ >= 901
++  int16ToInt#
++#endif
++    (indexInt16OffAddr# arr off)
+ #endif
+ 
+ {-# INLINE alexIndexInt32OffAddr #-}
+@@ -398,7 +401,10 @@ alexIndexInt32OffAddr (AlexA# arr) off =
+    b0   = int2Word# (ord# (indexCharOffAddr# arr off'))
+    off' = off *# 4#
+ #else
+-  indexInt32OffAddr# arr off
++#if __GLASGOW_HASKELL__ >= 901
++  int32ToInt#
++#endif
++    (indexInt32OffAddr# arr off)
+ #endif
+ 
+ #if __GLASGOW_HASKELL__ < 503
+diff --git a/Distribution/Simple/Utils.hs b/Distribution/Simple/Utils.hs
+index 12eb4ad..8efd8a7 100644
+--- a/Distribution/Simple/Utils.hs
++++ b/Distribution/Simple/Utils.hs
+@@ -1338,7 +1338,7 @@ withTempFileEx opts tmpDir template action =
+     (\(name, handle) -> do hClose handle
+                            unless (optKeepTempFiles opts) $
+                              handleDoesNotExist () . removeFile $ name)
+-    (withLexicalCallStack (uncurry action))
++    (withLexicalCallStack (\x -> uncurry action x))
+ 
+ -- | Create and use a temporary directory.
+ --
+@@ -1353,7 +1353,7 @@ withTempFileEx opts tmpDir template action =
+ withTempDirectory :: Verbosity -> FilePath -> String -> (FilePath -> IO a) -> IO a
+ withTempDirectory verbosity targetDir template f = withFrozenCallStack $
+   withTempDirectoryEx verbosity defaultTempFileOptions targetDir template
+-    (withLexicalCallStack f)
++    (withLexicalCallStack (\x -> f x))
+ 
+ -- | A version of 'withTempDirectory' that additionally takes a
+ -- 'TempFileOptions' argument.
+@@ -1364,7 +1364,7 @@ withTempDirectoryEx _verbosity opts targetDir template f = withFrozenCallStack $
+     (createTempDirectory targetDir template)
+     (unless (optKeepTempFiles opts)
+      . handleDoesNotExist () . removeDirectoryRecursive)
+-    (withLexicalCallStack f)
++    (withLexicalCallStack (\x -> f x))
+ 
+ -----------------------------------
+ -- Safely reading and writing files

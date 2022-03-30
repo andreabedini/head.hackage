@@ -1,0 +1,90 @@
+diff --git a/src-64/Data/Primitive/Unaligned/Mach.hs b/src-64/Data/Primitive/Unaligned/Mach.hs
+index f365f40..2eead89 100644
+--- a/src-64/Data/Primitive/Unaligned/Mach.hs
++++ b/src-64/Data/Primitive/Unaligned/Mach.hs
+@@ -1,3 +1,4 @@
++{-# language CPP #-}
+ {-# language MagicHash #-}
+ {-# language UnboxedTuples #-}
+ 
+@@ -17,11 +18,23 @@ import qualified GHC.Exts as E
+ 
+ indexUnalignedWord64Array# :: ByteArray# -> Int# -> Word64
+ indexUnalignedWord64Array# a i =
+-  W64# (E.indexWord8ArrayAsWord# a i)
++  W64# (
++#if __GLASGOW_HASKELL__ >= 903
++    E.indexWord8ArrayAsWord64#
++#else
++    E.indexWord8ArrayAsWord#
++#endif
++      a i)
+ 
+ indexUnalignedInt64Array# :: ByteArray# -> Int# -> Int64
+ indexUnalignedInt64Array# a i =
+-  I64# (E.indexWord8ArrayAsInt# a i)
++  I64# (
++#if __GLASGOW_HASKELL__ >= 903
++    E.indexWord8ArrayAsInt64#
++#else
++    E.indexWord8ArrayAsInt#
++#endif
++      a i)
+ 
+ readUnalignedWord64Array# ::
+      MutableByteArray# s
+@@ -29,7 +42,13 @@ readUnalignedWord64Array# ::
+   -> State# s
+   -> (# State# s, Word64 #)
+ readUnalignedWord64Array# a i s0 =
+-  case E.readWord8ArrayAsWord# a i s0 of
++  case
++#if __GLASGOW_HASKELL__ >= 903
++    E.readWord8ArrayAsWord64#
++#else
++    E.readWord8ArrayAsWord#
++#endif
++      a i s0 of
+     (# s1, r #) -> (# s1, W64# r #)
+ 
+ readUnalignedInt64Array# ::
+@@ -38,7 +57,13 @@ readUnalignedInt64Array# ::
+   -> State# s
+   -> (# State# s, Int64 #)
+ readUnalignedInt64Array# a i s0 =
+-  case E.readWord8ArrayAsInt# a i s0 of
++  case
++#if __GLASGOW_HASKELL__ >= 903
++    E.readWord8ArrayAsInt64#
++#else
++    E.readWord8ArrayAsInt#
++#endif
++      a i s0 of
+     (# s1, r #) -> (# s1, I64# r #)
+ 
+ writeUnalignedWord64Array# ::
+@@ -48,7 +73,12 @@ writeUnalignedWord64Array# ::
+     -> State# s
+     -> State# s
+ writeUnalignedWord64Array# a i (W64# w) =
+-  E.writeWord8ArrayAsWord# a i w
++#if __GLASGOW_HASKELL__ >= 903
++  E.writeWord8ArrayAsWord64#
++#else
++  E.writeWord8ArrayAsWord#
++#endif
++    a i w
+ 
+ writeUnalignedInt64Array# ::
+        MutableByteArray# s
+@@ -57,4 +87,9 @@ writeUnalignedInt64Array# ::
+     -> State# s
+     -> State# s
+ writeUnalignedInt64Array# a i (I64# w) =
+-  E.writeWord8ArrayAsInt# a i w
++#if __GLASGOW_HASKELL__ >= 903
++  E.writeWord8ArrayAsInt64#
++#else
++  E.writeWord8ArrayAsInt#
++#endif
++    a i w

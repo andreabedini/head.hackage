@@ -1,0 +1,79 @@
+diff --git a/Data/Concurrent/Queue/MichaelScott.hs b/Data/Concurrent/Queue/MichaelScott.hs
+index f27c17c..54966be 100644
+--- a/Data/Concurrent/Queue/MichaelScott.hs
++++ b/Data/Concurrent/Queue/MichaelScott.hs
+@@ -32,14 +32,14 @@ import Data.Atomics (readForCAS, casIORef, Ticket, peekTicket)
+ 
+ -- GHC 7.8 changed some primops
+ #if MIN_VERSION_base(4,7,0)
+-import GHC.Base  hiding ((==#), sameMutVar#)
+-import GHC.Prim hiding ((==#), sameMutVar#)
+-import qualified GHC.PrimopWrappers as GPW
++import GHC.Base hiding ((==#), sameMutVar#)
++import GHC.Exts hiding ((==#), sameMutVar#)
++import qualified GHC.Exts
+ (==#) :: Int# -> Int# -> Bool
+-(==#) x y = case x GPW.==# y of { 0# -> False; _ -> True }
++(==#) x y = case x GHC.Exts.==# y of { 0# -> False; _ -> True }
+ 
+ sameMutVar# :: MutVar# s a -> MutVar# s a -> Bool
+-sameMutVar# x y = case GPW.sameMutVar# x y of { 0# -> False; _ -> True }
++sameMutVar# x y = case GHC.Exts.sameMutVar# x y of { 0# -> False; _ -> True }
+ #else
+ import GHC.Base
+ import GHC.Prim
+@@ -160,31 +160,32 @@ tryPopR q@(LQ headPtr tailPtr) = loop 0
+         if not (pairEq head head') then loop (tries+1) else do 
+ #else
+         let head' = head
+-        do 
++        do
+ #endif                 
+-	  -- Is queue empty or tail falling behind?:
+-          if pairEq head (peekTicket tailTicket) then do 
+-          -- if ptrEq head tail then do 
+-	    case peekTicket nextTicket' of -- Is queue empty?
+-              Null -> return Nothing -- Queue is empty, couldn't dequeue
+-	      next'@(Cons _ _) -> do
+-  	        -- Tail is falling behind.  Try to advance it:
+-	        casIORef tailPtr tailTicket next'
+-		loop (tries+1)
++    -- Is queue empty or tail falling behind?:
++          if pairEq head (peekTicket tailTicket)
++            then do 
++              -- if ptrEq head tail then do 
++              case peekTicket nextTicket' of -- Is queue empty?
++                  Null -> return Nothing -- Queue is empty, couldn't dequeue
++                  next'@(Cons _ _) -> do
++                    -- Tail is falling behind.  Try to advance it:
++                    casIORef tailPtr tailTicket next'
++                    loop (tries+1)
+            
+-	   else do -- head /= tail
+-	      -- No need to deal with Tail.  Read value before CAS.
+-	      -- Otherwise, another dequeue might free the next node
+-	      case peekTicket nextTicket' of 
+-	        Null -> error "tryPop: Internal error.  Next should not be null if head/=tail."
+---	        Null -> loop (tries+1)
+-		next'@(Cons value _) -> do 
+-                  -- Try to swing Head to the next node
+-		  (b,_) <- casIORef headPtr headTicket next'
++            else do -- head /= tail
++              -- No need to deal with Tail.  Read value before CAS.
++              -- Otherwise, another dequeue might free the next node
++              case peekTicket nextTicket' of 
++                Null -> error "tryPop: Internal error.  Next should not be null if head/=tail."
++--	            Null -> loop (tries+1)
++                next'@(Cons value _) -> do 
++                      -- Try to swing Head to the next node
++                  (b,_) <- casIORef headPtr headTicket next'
+                   case b of
+-                    -- [2013.04.24] Looking at the STG, I can't see a way to get rid of the allocation on this Just:
+-                    True  -> return (Just value) -- Dequeue done; exit loop.
+-                    False -> loop (tries+1) -- ANDREAS: observed this loop being taken >1M times
++                        -- [2013.04.24] Looking at the STG, I can't see a way to get rid of the allocation on this Just:
++                        True  -> return (Just value) -- Dequeue done; exit loop.
++                        False -> loop (tries+1) -- ANDREAS: observed this loop being taken >1M times
+           
+ -- | Create a new queue.
+ newQ :: IO (LinkedQueue a)

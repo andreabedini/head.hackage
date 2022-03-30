@@ -1,0 +1,14 @@
+diff --git a/Yesod/Default/Util.hs b/Yesod/Default/Util.hs
+index 2051413..19c2f9f 100644
+--- a/Yesod/Default/Util.hs
++++ b/Yesod/Default/Util.hs
+@@ -23,6 +23,9 @@ import Control.Monad (when, unless)
+ import Conduit
+ import System.Directory (doesFileExist, createDirectoryIfMissing)
+ import Language.Haskell.TH.Syntax
++#if __GLASGOW_HASKELL__ >= 903
++  hiding (makeRelativeToProject)
++#endif
+ import Text.Lucius (luciusFile, luciusFileReload)
+ import Text.Julius (juliusFile, juliusFileReload)
+ import Text.Cassius (cassiusFile, cassiusFileReload)

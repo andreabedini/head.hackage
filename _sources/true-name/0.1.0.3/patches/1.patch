@@ -1,0 +1,62 @@
+diff --git a/Unsafe/TrueName.hs b/Unsafe/TrueName.hs
+index cab1bc1..40423aa 100644
+--- a/Unsafe/TrueName.hs
++++ b/Unsafe/TrueName.hs
+@@ -65,6 +65,11 @@ decNames dec = case dec of
+ #endif
+ 
+ #if MIN_VERSION_template_haskell(2,12,0)
++    DataInstD cxt _mbtvs _ntyps _kind cons derivs   ->
++        datatypeNames cxt cons  ++ derivNames derivs
++    NewtypeInstD cxt _mbtvs _ntyps _kind con derivs ->
++        datatypeNames cxt [con] ++ derivNames derivs
++#elif MIN_VERSION_template_haskell(2,12,0)
+     DataInstD cxt _name _typs _kind cons derivs   ->
+         datatypeNames cxt cons  ++ derivNames derivs
+     NewtypeInstD cxt _name _typs _kind con derivs ->
+@@ -93,7 +98,11 @@ decNames dec = case dec of
+ #endif
+ 
+ #if MIN_VERSION_template_haskell(2,9,0)
+-    TySynInstD _ tse -> tseNames tse
++    TySynInstD
++# if !(MIN_VERSION_template_haskell(2,15,0))
++      _
++# endif
++      tse -> tseNames tse
+     RoleAnnotD _ _ -> []
+ #else
+     TySynInstD _ ts t -> (typNames =<< ts) ++ typNames t
+@@ -121,7 +130,19 @@ derivNames derivs = predNames =<<
+ 
+ #if MIN_VERSION_template_haskell(2,9,0)
+ tseNames :: TySynEqn -> [Name]
++# if MIN_VERSION_template_haskell(2,15,0)
++tseNames (TySynEqn _ nts t) = (typNames =<< ts) ++ typNames t
++  where
++    (_n, ts) = unAppsT nts
++
++    unAppsT :: Type -> (Type, [Type])
++    unAppsT = go []
++      where
++        go xs (AppT l x) = go (x : xs) l
++        go xs ty = (ty, xs)
++# else
+ tseNames (TySynEqn ts t) = (typNames =<< ts) ++ typNames t
++# endif
+ #endif
+ 
+ predNames :: Pred -> [Name]{- {{{ -}
+@@ -321,7 +342,11 @@ truename = QuasiQuoter
+         _ -> err $ occString occ ++ " has a strange flavour"
+     makeP (name, vars) = if vars == [".."]
+             then RecP name . capture VarP <$> recFields name
+-            else return $ ConP name (map pat vars) where
++            else return $ ConP name
++#if MIN_VERSION_template_haskell(2,18,0)
++                               []
++#endif
++                               (map pat vars) where
+         pat n = case n of
+             "_" -> WildP
+             '!' : ns -> BangP (pat ns)

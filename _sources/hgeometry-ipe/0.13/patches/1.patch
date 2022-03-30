@@ -1,0 +1,34 @@
+diff --git a/src/Ipe/Content.hs b/src/Ipe/Content.hs
+index ee0f29a..b598208 100644
+--- a/src/Ipe/Content.hs
++++ b/src/Ipe/Content.hs
+@@ -288,6 +288,14 @@ deriving instance (Eq r)   => Eq   (IpeObject r)
+ type instance NumType   (IpeObject r) = r
+ type instance Dimension (IpeObject r) = 2
+ 
++instance Fractional r => IsTransformable (IpeObject r) where
++  transformBy t (IpeGroup i)     = IpeGroup     $ i&core %~ transformBy t
++  transformBy t (IpeImage i)     = IpeImage     $ i&core %~ transformBy t
++  transformBy t (IpeTextLabel i) = IpeTextLabel $ i&core %~ transformBy t
++  transformBy t (IpeMiniPage i)  = IpeMiniPage  $ i&core %~ transformBy t
++  transformBy t (IpeUse i)       = IpeUse       $ i&core %~ transformBy t
++  transformBy t (IpePath i)      = IpePath      $ i&core %~ transformBy t
++
+ makePrisms ''IpeObject
+ 
+ groupItems :: Lens (Group r) (Group s) [IpeObject r] [IpeObject s]
+@@ -303,14 +311,6 @@ instance ToObject MiniPage   where mkIpeObject = IpeMiniPage
+ instance ToObject IpeSymbol  where mkIpeObject = IpeUse
+ instance ToObject Path       where mkIpeObject = IpePath
+ 
+-instance Fractional r => IsTransformable (IpeObject r) where
+-  transformBy t (IpeGroup i)     = IpeGroup     $ i&core %~ transformBy t
+-  transformBy t (IpeImage i)     = IpeImage     $ i&core %~ transformBy t
+-  transformBy t (IpeTextLabel i) = IpeTextLabel $ i&core %~ transformBy t
+-  transformBy t (IpeMiniPage i)  = IpeMiniPage  $ i&core %~ transformBy t
+-  transformBy t (IpeUse i)       = IpeUse       $ i&core %~ transformBy t
+-  transformBy t (IpePath i)      = IpePath      $ i&core %~ transformBy t
+-
+ -- | Shorthand for constructing ipeObjects
+ ipeObject'     :: ToObject i => i r -> IpeAttributes i r -> IpeObject r
+ ipeObject' i a = mkIpeObject $ i :+ a

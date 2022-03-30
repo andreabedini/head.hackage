@@ -1,0 +1,13 @@
+diff --git a/src/Control/Monad/Validate/Internal.hs b/src/Control/Monad/Validate/Internal.hs
+index cfb1d6b..96aee8e 100644
+--- a/src/Control/Monad/Validate/Internal.hs
++++ b/src/Control/Monad/Validate/Internal.hs
+@@ -296,7 +296,7 @@ instance (Monad m) => Applicative (ValidateT e m) where
+   {-# INLINABLE (<*>) #-}
+ 
+ instance (Monad m) => Monad (ValidateT e m) where
+-  ValidateT x >>= f = ValidateT (x >>= (getValidateT . f))
++  ValidateT x >>= f = ValidateT (x >>= (\a -> getValidateT (f a)))
+   {-# INLINE (>>=) #-}
+ 
+ instance MonadTrans (ValidateT e) where

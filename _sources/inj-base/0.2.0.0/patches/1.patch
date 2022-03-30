@@ -1,0 +1,56 @@
+diff --git a/Inj/Base.hs b/Inj/Base.hs
+index ec8d339..31969fa 100644
+--- a/Inj/Base.hs
++++ b/Inj/Base.hs
+@@ -1,6 +1,7 @@
+ -- | 'Inj' instances for types from 'base'.
+ 
+ {-# LANGUAGE
++    CPP,
+     DefaultSignatures,
+     FunctionalDependencies,
+     FlexibleInstances,
+@@ -128,6 +129,7 @@ class d ~ DecideZipList p => InjZipList d p a where
+ instance InjZipList (DecideZipList p) p a => Inj p (ZipList a) where
+   inj = injZipList
+ 
++#if !(MIN_VERSION_base(4,16,0))
+ type family DecideOption p where
+   DecideOption (Option p) = Decision_Map
+   DecideOption p = Decision_Wrap
+@@ -137,6 +139,7 @@ class d ~ DecideOption p => InjOption d p a where
+ 
+ instance InjOption (DecideOption p) p a => Inj p (Option a) where
+   inj = injOption
++#endif
+ 
+ type family DecideST p where
+   DecideST (ST s p) = Decision_Map
+@@ -325,11 +328,13 @@ instance
+   where
+     injZipList = pure . inj
+ 
++#if !(MIN_VERSION_base(4,16,0))
+ instance
+     (DecideOption p ~ Decision_Wrap, Inj p a) =>
+     InjOption Decision_Wrap p a
+   where
+     injOption = pure . inj
++#endif
+ 
+ instance Inj p a => Inj p (Data.Semigroup.Last a) where
+   inj = pure . inj
+@@ -404,11 +409,13 @@ instance
+   where
+     injZipList = fmap inj
+ 
++#if !(MIN_VERSION_base(4,16,0))
+ instance
+     (DecideOption p ~ Decision_Map, p ~ Option p', Inj p' a) =>
+     InjOption Decision_Map p a
+   where
+     injOption = fmap inj
++#endif
+ 
+ instance
+     (DecideST p ~ Decision_Map, p ~ ST s p', Inj p' a) =>

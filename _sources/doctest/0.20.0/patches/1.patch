@@ -1,0 +1,73 @@
+diff --git a/src/Extract.hs b/src/Extract.hs
+index ac4c9be..1669692 100644
+--- a/src/Extract.hs
++++ b/src/Extract.hs
+@@ -181,11 +181,7 @@ parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
+       _ <- setSessionDynFlags (GHC.ms_hspp_opts modsum)
+       hsc_env <- getSession
+ 
+-# if __GLASGOW_HASKELL__ >= 903
+-      hsc_env' <- liftIO (initializePlugins hsc_env Nothing)
+-      setSession hsc_env'
+-      return $ modsum
+-# elif __GLASGOW_HASKELL__ >= 901
++# if __GLASGOW_HASKELL__ >= 901
+       hsc_env' <- liftIO (initializePlugins hsc_env)
+       setSession hsc_env'
+       return $ modsum
+@@ -237,8 +233,14 @@ docStringsFromModule mod = map (fmap (toLocated . fmap unpackHDS)) docs
+     -- We process header, exports and declarations separately instead of
+     -- traversing the whole source in a generic way, to ensure that we get
+     -- everything in source order.
+-    header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
+-    exports = [ (Nothing, L (locA loc) doc)
++    header  = [ ( Nothing,
++#if __GLASGOW_HASKELL__ >= 903
++                  fmap hsDocString
++#endif
++                       x
++                )
++              | Just x <- [hsmodHaddockModHeader source]]
++    exports = [ (Nothing, lhsDocString (locA loc) doc)
+ #if __GLASGOW_HASKELL__ < 710
+               | L loc (IEDoc doc) <- concat (hsmodExports source)
+ #elif __GLASGOW_HASKELL__ < 805
+@@ -319,12 +321,22 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
+     fromLHsDocString :: Selector LHsDocString
+     fromLHsDocString x = select (Nothing, x)
+ 
+-    fromDocDecl :: SrcSpan -> DocDecl -> (Maybe String, LHsDocString)
++    fromDocDecl :: SrcSpan
++#if __GLASGOW_HASKELL__ >= 903
++                -> DocDecl GhcPs
++#else
++                -> DocDecl
++#endif
++                -> (Maybe String, LHsDocString)
+     fromDocDecl loc x = case x of
+-      DocCommentNamed name doc -> (Just name, L loc doc)
+-      _                        -> (Nothing, L loc $ docDeclDoc x)
++      DocCommentNamed name doc -> (Just name, lhsDocString loc doc)
++      _                        -> (Nothing, lhsDocString loc $ docDeclDoc x)
+ 
+-#if __GLASGOW_HASKELL__ < 805
++#if __GLASGOW_HASKELL__ >= 903
++-- | Convert a docstring to a plain string.
++unpackHDS :: HsDocString -> String
++unpackHDS = renderHsDocString
++#elif __GLASGOW_HASKELL__ < 805
+ -- | Convert a docstring to a plain string.
+ unpackHDS :: HsDocString -> String
+ unpackHDS (HsDocString s) = unpackFS s
+@@ -334,3 +346,11 @@ unpackHDS (HsDocString s) = unpackFS s
+ locA :: SrcSpan -> SrcSpan
+ locA = id
+ #endif
++
++#if __GLASGOW_HASKELL__ >= 903
++lhsDocString :: SrcSpan -> LHsDoc GhcPs -> LHsDocString
++lhsDocString _ = fmap hsDocString
++#else
++lhsDocString :: SrcSpan -> HsDocString -> LHsDocString
++lhsDocString = L
++#endif

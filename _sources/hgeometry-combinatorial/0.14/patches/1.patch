@@ -1,0 +1,59 @@
+diff --git a/src/Data/LSeq.hs b/src/Data/LSeq.hs
+index 1912cb2..3ca750e 100644
+--- a/src/Data/LSeq.hs
++++ b/src/Data/LSeq.hs
+@@ -1,5 +1,6 @@
+ {-# LANGUAGE ScopedTypeVariables #-}
+ {-# LANGUAGE BangPatterns #-}
++{-# LANGUAGE UndecidableInstances #-}
+ --------------------------------------------------------------------------------
+ -- |
+ -- Module      :  Data.LSeq
+@@ -260,7 +261,7 @@ data ViewL n a where
+ infixr 5 :<
+ 
+ instance Semigroup (ViewL n a) where
+-  (x :< xs) <> (y :< ys) = x :< LSeq (toSeq xs <> (y S.<| toSeq ys))
++  ((:<) @_ @m x xs) <> (y :< ys) = (:<) @_ @m x (LSeq (toSeq xs <> (y S.<| toSeq ys)))
+ 
+ deriving instance Show a => Show (ViewL n a)
+ instance Functor (ViewL n) where
+@@ -328,7 +329,7 @@ data ViewR n a where
+ infixl 5 :>
+ 
+ instance Semigroup (ViewR n a) where
+-  (xs :> x) <> (ys :> y) = LSeq ((toSeq xs S.|> x) <> toSeq ys) :> y
++  ((:>) @m xs x) <> (ys :> y) = (:>) @m (LSeq ((toSeq xs S.|> x) <> toSeq ys)) y
+ 
+ deriving instance Show a => Show (ViewR n a)
+ instance Functor (ViewR n) where
+diff --git a/src/Data/PlanarGraph/Mutable.hs b/src/Data/PlanarGraph/Mutable.hs
+index 295447c..a661556 100644
+--- a/src/Data/PlanarGraph/Mutable.hs
++++ b/src/Data/PlanarGraph/Mutable.hs
+@@ -633,13 +633,13 @@ pgConnectVertices :: HalfEdge s -> HalfEdge s -> ST s (Edge s)
+ pgConnectVertices e1 e2 =
+   eqCheck "pgConnectVertices" (halfEdgePlanarGraph e1) (halfEdgePlanarGraph e2) $ do
+     let pg = halfEdgePlanarGraph e1
+-    when (e1 == e2) $ fail "Edges must be different"
++    when (e1 == e2) $ error "Edges must be different"
+     f1 <- halfEdgeFace e1
+     f2 <- halfEdgeFace e2
+-    unless (f1==f2) $ fail "Faces must be the same"
++    unless (f1==f2) $ error "Faces must be the same"
+     e1' <- halfEdgeNext e1
+     e2' <- halfEdgeNext e2
+-    when (e1' == e2 || e2' == e1) $ fail "Edges must not be consecutive"
++    when (e1' == e2 || e2' == e1) $ error "Edges must not be consecutive"
+ 
+     e1_prev <- halfEdgePrev e1
+     e2_prev <- halfEdgePrev e2
+@@ -647,7 +647,7 @@ pgConnectVertices e1 e2 =
+     he <- halfEdgeNew pg
+     halfEdgeSetFace he f1
+     let he' = halfEdgeTwin he
+-    
++
+     halfEdgeSetVertex he =<< halfEdgeVertex e2
+     halfEdgeSetVertex he' =<< halfEdgeVertex e1
+ 

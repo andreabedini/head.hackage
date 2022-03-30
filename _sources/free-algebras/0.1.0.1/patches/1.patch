@@ -1,0 +1,28 @@
+diff --git a/src/Data/Semigroup/Abelian.hs b/src/Data/Semigroup/Abelian.hs
+index 6567faf..c38b161 100644
+--- a/src/Data/Semigroup/Abelian.hs
++++ b/src/Data/Semigroup/Abelian.hs
+@@ -26,7 +26,9 @@ import           Data.Semigroup
+                     , Dual
+                     , Max
+                     , Min
++#if __GLASGOW_HASKELL__ < 900
+                     , Option
++#endif
+                     , Product
+                     , Sum
+                     )
+@@ -111,10 +113,10 @@ instance FreeAlgebra FreeAbelianSemigroup where
+     foldMapFree f (FreeAbelianSemigroup as)
+                  = foldMapFree f (toNonEmpty_ as)
+       where
+-        replicate_ :: a -> Natural -> [a]                                     
++        replicate_ :: a -> Natural -> [a]
+         replicate_ _ n | n <= 0 = error "foldMapFree @FreeAbelianSemigroup: impossible"
+-        replicate_ a 1 = [a]                                                   
+-        replicate_ a n = a : replicate_ a (n - 1)                             
++        replicate_ a 1 = [a]
++        replicate_ a n = a : replicate_ a (n - 1)
+ 
+         toNonEmpty_ :: Map a Natural -> NonEmpty a
+         toNonEmpty_ = NE.fromList . concatMap (uncurry replicate_) . Map.toList

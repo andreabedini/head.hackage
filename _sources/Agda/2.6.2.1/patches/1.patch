@@ -1,0 +1,98 @@
+diff --git a/Agda.cabal b/Agda.cabal
+index 5275794..2b13c63 100644
+--- a/Agda.cabal
++++ b/Agda.cabal
+@@ -1,5 +1,6 @@
+ name:            Agda
+ version:         2.6.2.1
++x-revision: 4
+ cabal-version:   >= 1.10
+ build-type:      Custom
+ license:         OtherLicense
+@@ -211,7 +212,7 @@ library
+                 , binary >= 0.8.3.0 && < 0.9
+                 , blaze-html >= 0.8 && < 0.10
+                 , boxes >= 0.1.3 && < 0.2
+-                , bytestring >= 0.10.8.1 && < 0.12
++                , bytestring >= 0.10.8.1 && < 0.11.2
+                 , case-insensitive >= 1.2.0.4 && < 1.3
+                 -- containers-0.5.11.0 is the first to contain IntSet.intersection
+                 , containers >= 0.5.11.0 && < 0.7
+@@ -219,7 +220,7 @@ library
+                 , deepseq >= 1.4.2.0 && < 1.5
+                 , directory >= 1.2.6.2 && < 1.4
+                 , edit-distance >= 0.2.1.2 && < 0.3
+-                , equivalence >= 0.3.2 && < 0.4
++                , equivalence >= 0.3.2 && < 0.5
+                 -- exceptions-0.8 instead of 0.10 because of stack
+                 , exceptions >= 0.8 && < 0.11
+                 , filepath >= 1.4.1.0 && < 1.5
+@@ -241,7 +242,7 @@ library
+                 --
+                 -- mtl >= 2.2 && < 2.2.1 doesn't export Control.Monad.Except.
+                 -- Need mtl 2.2.2  for export of Control.Monad.IdentityT (ghc 8.2.2+)
+-                , mtl >= 2.2.1 && < 2.3
++                , mtl >= 2.2.1 && < 2.4
+                 , murmur-hash >= 0.1 && < 0.2
+                 , parallel >= 3.2.2.0 && < 3.3
+                 , pretty >= 1.1.3.3 && < 1.2
+@@ -251,9 +252,10 @@ library
+                 , stm >= 2.4.4 && < 2.6
+                 , strict >= 0.3.2 && < 0.5
+                 , template-haskell >= 2.11.0.0 && < 2.19
+-                , text >= 1.2.3.0 && < 1.3
++                , text >= 1.2.3.0 && < 2.1
+                 , time >= 1.6.0.1 && < 1.13
+-                , transformers >= 0.5 && < 0.7
++                , transformers >= 0.5 && < 0.6
++                    -- build failure with transformers-0.6
+                 , unordered-containers >= 0.2.5.0 && < 0.3
+                 , uri-encode >= 1.5.0.4 && < 1.6
+                 , zlib == 0.6.*
+@@ -803,7 +805,7 @@ executable agda
+   -- default.
+ 
+   -- The threaded RTS by default starts a major GC after a program has
+-  -- been idle for 0.3 s. This feature turned out to be annoying, so
++  -- been idle for 0.3 s. This feature turned out to be annoying, so
+   -- the idle GC is now by default turned off (-I0).
+   ghc-options: -threaded -rtsopts
+                "-with-rtsopts=-M3.5G -I0"
+diff --git a/src/full/Agda/TypeChecking/Reduce/Fast.hs b/src/full/Agda/TypeChecking/Reduce/Fast.hs
+index 6fc2596..02e86d3 100644
+--- a/src/full/Agda/TypeChecking/Reduce/Fast.hs
++++ b/src/full/Agda/TypeChecking/Reduce/Fast.hs
+@@ -503,7 +503,7 @@ derefPointer (Pointer ptr) = readSTRef ptr
+ -- | In most cases pointers that we dereference do not contain black holes.
+ derefPointer_ :: Pointer s -> ST s (Closure s)
+ derefPointer_ ptr = do
+-  Thunk cl <- derefPointer ptr
++  ~(Thunk cl) <- derefPointer ptr
+   return cl
+ 
+ -- | Only use for debug printing!
+diff --git a/src/full/Agda/TypeChecking/Serialise.hs b/src/full/Agda/TypeChecking/Serialise.hs
+index 69c3f70..dfd2cad 100644
+--- a/src/full/Agda/TypeChecking/Serialise.hs
++++ b/src/full/Agda/TypeChecking/Serialise.hs
+@@ -36,7 +36,7 @@ import Control.Monad.State.Strict
+ 
+ import Data.Array.IArray
+ import Data.Word
+-import qualified Data.ByteString.Builder as L
++import qualified Data.ByteString.Builder as LB
+ import qualified Data.ByteString.Lazy as L
+ import qualified Data.HashTable.IO as H
+ import qualified Data.Map as Map
+@@ -264,9 +264,9 @@ decodeInterface s = do
+        if ver /= currentInterfaceVersion
+        then Left "Wrong interface version."
+        else Right $
+-            L.toLazyByteString $
++            LB.toLazyByteString $
+             Z.foldDecompressStreamWithInput
+-              (\s -> (L.byteString s <>))
++              (\s -> (LB.byteString s <>))
+               (\s -> if L.null s
+                      then mempty
+                      else error "Garbage at end.")

@@ -1,0 +1,57 @@
+diff --git a/servant.cabal b/servant.cabal
+index 314b784..c3bbfe1 100644
+--- a/servant.cabal
++++ b/servant.cabal
+@@ -1,6 +1,7 @@
+ cabal-version:       2.2
+ name:                servant
+ version:             0.19
++x-revision: 1
+ 
+ synopsis:            A family of combinators for defining webservices APIs
+ category:            Servant, Web
+@@ -86,7 +87,7 @@ library
+     , mtl                    >= 2.2.2    && < 2.3
+     , sop-core               >= 0.4.0.0  && < 0.6
+     , transformers           >= 0.5.2.0  && < 0.6
+-    , text                   >= 1.2.3.0  && < 1.3
++    , text                   >= 1.2.3.0  && < 2.1
+ 
+ 
+   -- We depend (heavily) on the API of these packages:
+@@ -98,7 +99,7 @@ library
+   -- Other dependencies: Lower bound around what is in the latest Stackage LTS.
+   -- Here can be exceptions if we really need features from the newer versions.
+   build-depends:
+-      base-compat            >= 0.10.5   && < 0.12
++      base-compat            >= 0.10.5   && < 0.13
+     , aeson                  >= 1.4.1.0  && < 3
+     , attoparsec             >= 0.13.2.2 && < 0.15
+     , bifunctors             >= 5.5.3    && < 5.6
+diff --git a/src/Servant/Links.hs b/src/Servant/Links.hs
+index ce07e22..67ba9c0 100644
+--- a/src/Servant/Links.hs
++++ b/src/Servant/Links.hs
+@@ -129,6 +129,7 @@ module Servant.Links (
+   , linkFragment
+ ) where
+ 
++import           Data.Kind (Type)
+ import           Data.List
+ import           Data.Constraint
+ import           Data.Proxy
+@@ -647,12 +648,12 @@ simpleToLink _ toA _ = toLink toA (Proxy :: Proxy sub)
+ -- >>> import Data.Text (Text)
+ 
+ -- Erroring instance for 'HasLink' when a combinator is not fully applied
+-instance TypeError (PartialApplication HasLink arr) => HasLink ((arr :: a -> b) :> sub)
++instance TypeError (PartialApplication (HasLink :: Type -> Constraint) arr) => HasLink ((arr :: a -> b) :> sub)
+   where
+     type MkLink (arr :> sub) _ = TypeError (PartialApplication (HasLink :: * -> Constraint) arr)
+     toLink = error "unreachable"
+ 
+ -- Erroring instances for 'HasLink' for unknown API combinators
+-instance {-# OVERLAPPABLE #-} TypeError (NoInstanceForSub HasLink ty) => HasLink (ty :> sub)
++instance {-# OVERLAPPABLE #-} TypeError (NoInstanceForSub (HasLink :: Type -> Constraint) ty) => HasLink (ty :> sub)
+ 
+ instance {-# OVERLAPPABLE #-} TypeError (NoInstanceFor (HasLink api)) => HasLink api

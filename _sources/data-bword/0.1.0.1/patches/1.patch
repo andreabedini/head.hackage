@@ -1,0 +1,61 @@
+diff --git a/src/Data/BinaryWord.hs b/src/Data/BinaryWord.hs
+index f2f4d40..a962bc4 100644
+--- a/src/Data/BinaryWord.hs
++++ b/src/Data/BinaryWord.hs
+@@ -29,6 +29,10 @@ import GHC.Word (Word32(..))
+ # endif
+ # if WORD_SIZE_IN_BITS == 64
+ import GHC.Word (Word64(..))
++import GHC.Exts (Word#)
++#  if __GLASGOW_HASKELL__ >= 903
++import GHC.Exts (Word64#, wordToWord64#, word64ToWord#)
++#  endif
+ # endif
+ #endif
+ 
+@@ -290,9 +294,9 @@ instance BinaryWord Word64 where
+   {-# INLINE signedWord #-}
+ #if __GLASGOW_HASKELL__ >= 705 && WORD_SIZE_IN_BITS == 64
+   unwrappedAdd (W64# x) (W64# y) = hi `seq` lo `seq` (hi, lo)
+-    where (# hi', lo' #) = plusWord2# x y
+-          lo = W64# lo'
+-          hi = W64# hi'
++    where (# hi', lo' #) = plusWord2# (word64ToWordCompat# x) (word64ToWordCompat# y)
++          lo = W64# (wordToWord64Compat# lo')
++          hi = W64# (wordToWord64Compat# hi')
+   {-# INLINE unwrappedAdd #-}
+ #else
+   unwrappedAdd x y = hi `seq` lo `seq` (hi, lo)
+@@ -302,9 +306,9 @@ instance BinaryWord Word64 where
+ #endif
+ #if __GLASGOW_HASKELL__ >= 705 && WORD_SIZE_IN_BITS == 64
+   unwrappedMul (W64# x) (W64# y) = hi `seq` lo `seq` (hi, lo)
+-    where (# hi', lo' #) = timesWord2# x y
+-          lo = W64# lo'
+-          hi = W64# hi'
++    where (# hi', lo' #) = timesWord2# (word64ToWordCompat# x) (word64ToWordCompat# y)
++          lo = W64# (wordToWord64Compat# lo')
++          hi = W64# (wordToWord64Compat# hi')
+   {-# INLINE unwrappedMul #-}
+ #else
+   unwrappedMul x y = hi `seq` lo `seq` (hi, lo)
+@@ -541,3 +545,19 @@ instance BinaryWord Int64 where
+   {-# INLINE setMsb #-}
+   clearMsb x = clearBit x 63
+   {-# INLINE clearMsb #-}
++
++#if WORD_SIZE_IN_BITS == 64
++# if __GLASGOW_HASKELL__ >= 903
++wordToWord64Compat# :: Word# -> Word64#
++wordToWord64Compat# = wordToWord64#
++
++word64ToWordCompat# :: Word64# -> Word#
++word64ToWordCompat# = word64ToWord#
++# else
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++
++word64ToWordCompat# :: Word# -> Word#
++word64ToWordCompat# x = x
++# endif
++#endif

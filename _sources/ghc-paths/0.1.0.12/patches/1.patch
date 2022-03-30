@@ -1,0 +1,13 @@
+diff --git a/ghc-paths.cabal b/ghc-paths.cabal
+index 6505ade..2e92b50 100644
+--- a/ghc-paths.cabal
++++ b/ghc-paths.cabal
+@@ -13,7 +13,7 @@ cabal-version: >= 1.6
+ build-type: Custom
+ 
+ custom-setup
+-        setup-depends: base >= 3 && < 5, Cabal >= 1.6 && <3.1, directory
++  setup-depends: base >= 3 && < 5, directory, Cabal < 3.7
+ 
+ library
+         build-depends: base >= 3 && < 5

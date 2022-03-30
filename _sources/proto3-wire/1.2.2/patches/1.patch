@@ -1,0 +1,156 @@
+diff --git a/proto3-wire.cabal b/proto3-wire.cabal
+index 6db123a..7f82355 100644
+--- a/proto3-wire.cabal
++++ b/proto3-wire.cabal
+@@ -29,7 +29,7 @@ library
+                        containers >=0.5 && < 0.7,
+                        deepseq ==1.4.*,
+                        ghc-prim >=0.5.3 && <0.8,
+-                       hashable <1.4,
++                       hashable <1.5,
+                        parameterized >=0.5.0.0 && <1,
+                        primitive >=0.6.4 && <0.8,
+                        safe ==0.3.*,
+diff --git a/src/Proto3/Wire/Reverse/Prim.hs b/src/Proto3/Wire/Reverse/Prim.hs
+index 3113baa..aa467bb 100644
+--- a/src/Proto3/Wire/Reverse/Prim.hs
++++ b/src/Proto3/Wire/Reverse/Prim.hs
+@@ -111,11 +111,18 @@ import           Data.Word                     ( Word16,
+                                                  byteSwap16, byteSwap32,
+                                                  byteSwap64 )
+ import           Foreign                       ( Storable(..) )
+-import           GHC.Exts                      ( Addr#, Int#, Proxy#,
++import           GHC.Exts                      ( Addr#, Int#, Proxy#, Word#,
+                                                  RealWorld, State#, (+#),
+                                                  and#, inline, or#,
+                                                  plusAddr#, plusWord#, proxy#,
+                                                  uncheckedShiftRL# )
++#if MIN_VERSION_base(4,16,0)
++import           GHC.Exts                      ( Word8#, Word32#,
++                                                 word32ToWord#, wordToWord8# )
++#endif
++#if __GLASGOW_HASKELL__ >= 903
++import           GHC.Exts                      ( wordToWord64# )
++#endif
+ import           GHC.IO                        ( IO(..) )
+ import           GHC.Int                       ( Int(..) )
+ import           GHC.Ptr                       ( Ptr(..) )
+@@ -137,11 +144,10 @@ import           Proto3.Wire.Reverse.Width     ( AssocPlusNat(..),
+ 
+ -- "ghc-prim" v0.6.1 defines `GHC.Prim.Ext.WORD64`, but we do not wish
+ -- to require that version of "ghc-prim".  Therefore we define it locally.
+-#if WORD_SIZE_IN_BITS < 64
+-import GHC.IntWord64 (Word64#)
++#if __GLASGOW_HASKELL__ >= 903 || WORD_SIZE_IN_BITS < 64
++import GHC.Exts (Word64#)
+ type WORD64 = Word64#
+ #else
+-import GHC.Exts (Word#)
+ type WORD64 = Word#
+ #endif
+ 
+@@ -663,7 +669,7 @@ charUtf8 = \ch -> case fromIntegral (ord ch) of W# x -> wordUtf8 x
+       Word# ->
+       FixedPrim (n + 1)
+     lsb = \p x -> p (uncheckedShiftRL# x 6#) &<>
+-                  word8 (W8# (plusWord# 0x80## (and# x 0x3F##)))
++                  word8 (W8# (wordToWord8Compat# (plusWord# 0x80## (and# x 0x3F##))))
+     {-# INLINE lsb #-}
+ 
+     p1 :: Word# -> FixedPrim 1
+@@ -671,10 +677,10 @@ charUtf8 = \ch -> case fromIntegral (ord ch) of W# x -> wordUtf8 x
+     p3 :: Word# -> FixedPrim 3
+     p4 :: Word# -> FixedPrim 4
+ 
+-    p1 x = word8 (W8# x)
+-    p2 = lsb (\x -> word8 (W8# (plusWord# 0xC0## x)))
+-    p3 = lsb (lsb (\x -> word8 (W8# (plusWord# 0xE0## x))))
+-    p4 = lsb (lsb (lsb (\x -> word8 (W8# (plusWord# 0xF0## x)))))
++    p1 x = word8 (W8# (wordToWord8Compat# x))
++    p2 = lsb (\x -> word8 (W8# (wordToWord8Compat# (plusWord# 0xC0## x))))
++    p3 = lsb (lsb (\x -> word8 (W8# (wordToWord8Compat# (plusWord# 0xE0## x)))))
++    p4 = lsb (lsb (lsb (\x -> word8 (W8# (wordToWord8Compat# (plusWord# 0xF0## x))))))
+ 
+     {-# INLINE p1 #-}
+     {-# INLINE p2 #-}
+@@ -684,7 +690,10 @@ charUtf8 = \ch -> case fromIntegral (ord ch) of W# x -> wordUtf8 x
+ 
+ -- | The bounded primitive implementing
+ -- `Proto3.Wire.Reverse.wordBase128LEVar`.
+-#if WORD_SIZE_IN_BITS < 64
++#if __GLASGOW_HASKELL__ >= 903
++wordBase128LEVar :: Word -> BoundedPrim 10
++wordBase128LEVar (W# w) = word64Base128LEVar (W64# (wordToWord64# w))
++#elif WORD_SIZE_IN_BITS < 64
+ wordBase128LEVar :: Word -> BoundedPrim 5
+ wordBase128LEVar (W# w) = word32Base128LEVar (W32# w)
+ #else
+@@ -695,7 +704,10 @@ wordBase128LEVar (W# w) = word64Base128LEVar (W64# w)
+ 
+ -- | Like 'wordBase128LEVar' but inlined, possibly bloating your code.  On
+ -- the other hand, inlining an application to a constant may shrink your code.
+-#if WORD_SIZE_IN_BITS < 64
++#if __GLASGOW_HASKELL__ >= 903
++wordBase128LEVar_inline :: Word -> BoundedPrim 10
++wordBase128LEVar_inline (W# w) = word64Base128LEVar_inline (W64# (wordToWord64# w))
++#elif WORD_SIZE_IN_BITS < 64
+ wordBase128LEVar_inline :: Word -> BoundedPrim 5
+ wordBase128LEVar_inline (W# w) = word32Base128LEVar_inline (W32# w)
+ #else
+@@ -719,7 +731,7 @@ word32Base128LEVar_inline = \(W32# x0) ->
+     wordBase128LEVar_choose 3 wordBase128LE_p3 $
+     wordBase128LEVar_choose 4 wordBase128LE_p4 $
+     (\x -> liftFixedPrim (wordBase128LE_p5 0## x))
+-  ) x0
++  ) (word32ToWordCompat# x0)
+ {-# INLINE word32Base128LEVar_inline #-}
+ 
+ wordBase128LEVar_choose ::
+@@ -742,13 +754,13 @@ wordBase128LE_msb ::
+   (Word# -> Word# -> FixedPrim n) ->
+   Word# -> Word# -> FixedPrim (n + 1)
+ wordBase128LE_msb = \p m x ->
+-    p 0x80## x &<> word8 (W8# (or# m (uncheckedShiftRL# x s)))
++    p 0x80## x &<> word8 (W8# (wordToWord8Compat# (or# m (uncheckedShiftRL# x s))))
+   where
+     !(I# s) = 7 * fromInteger (natVal' (proxy# :: Proxy# n))
+ {-# INLINE wordBase128LE_msb #-}
+ 
+ wordBase128LE_p1 :: Word# -> Word# -> FixedPrim 1
+-wordBase128LE_p1 = \m x -> word8 (W8# (or# m x))
++wordBase128LE_p1 = \m x -> word8 (W8# (wordToWord8Compat# (or# m x)))
+ {-# INLINE wordBase128LE_p1 #-}
+ 
+ wordBase128LE_p2 :: Word# -> Word# -> FixedPrim 2
+@@ -813,10 +825,10 @@ word64Base128LEVar_big x = pif (W64# x <= shiftL 1 60 - 1) p60 p64
+           word32Base128LEVar (W32# (shR 28))
+ 
+     p64 = ( liftFixedPrim (word28Base128LE x32) &<>
+-            liftFixedPrim (word28Base128LE (shR 28)) ) &<>
+-          word14Base128LEVar (shR 56)
++            liftFixedPrim (word28Base128LE (word32ToWordCompat# (shR 28))) ) &<>
++          word14Base128LEVar (word32ToWordCompat# (shR 56))
+ 
+-    x32 = case fromIntegral (W64# x) of W32# y -> y
++    x32 = case fromIntegral (W64# x) of W32# y -> word32ToWordCompat# y
+ 
+     shR s = case fromIntegral (shiftR (W64# x) s) of W32# y -> y
+ {-# NOINLINE word64Base128LEVar_big #-}
+@@ -836,3 +848,17 @@ vectorFixedPrim f = etaBuildR $ \v ->
+   where
+     w = fromInteger (natVal' (proxy# :: Proxy# w))
+ {-# INLINE vectorFixedPrim #-}
++
++#if MIN_VERSION_base(4,16,0)
++word32ToWordCompat# :: Word32# -> Word#
++word32ToWordCompat# = word32ToWord#
++
++wordToWord8Compat# :: Word# -> Word8#
++wordToWord8Compat# = wordToWord8#
++#else
++word32ToWordCompat# :: Word# -> Word#
++word32ToWordCompat# x = x
++
++wordToWord8Compat# :: Word# -> Word#
++wordToWord8Compat# x = x
++#endif

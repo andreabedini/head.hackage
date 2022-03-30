@@ -1,0 +1,12 @@
+diff --git a/src/Data/ExactPi/TypeLevel.hs b/src/Data/ExactPi/TypeLevel.hs
+index 51b4d64..64205f8 100644
+--- a/src/Data/ExactPi/TypeLevel.hs
++++ b/src/Data/ExactPi/TypeLevel.hs
+@@ -8,6 +8,7 @@
+ {-# LANGUAGE ScopedTypeVariables #-}
+ {-# LANGUAGE TypeFamilies #-}
+ {-# LANGUAGE TypeOperators #-}
++{-# LANGUAGE UndecidableInstances  #-}
+ 
+ #if __GLASGOW_HASKELL__ > 805
+ {-# LANGUAGE NoStarIsType #-}

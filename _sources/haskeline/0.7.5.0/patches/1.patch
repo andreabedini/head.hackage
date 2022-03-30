@@ -1,0 +1,106 @@
+diff --git a/System/Console/Haskeline/Backend/DumbTerm.hs b/System/Console/Haskeline/Backend/DumbTerm.hs
+index 4186c27..c7733b2 100644
+--- a/System/Console/Haskeline/Backend/DumbTerm.hs
++++ b/System/Console/Haskeline/Backend/DumbTerm.hs
+@@ -10,7 +10,7 @@ import System.IO
+ import Control.Applicative(Applicative)
+ import Control.Monad(liftM)
+ 
+--- TODO: 
++-- TODO:
+ ---- Put "<" and ">" at end of term if scrolls off.
+ ---- Have a margin at the ends
+ 
+@@ -34,17 +34,17 @@ evalDumb = EvalTerm (evalStateT' initWindow . unDumbTerm) (DumbTerm . lift)
+ 
+ runDumbTerm :: Handles -> MaybeT IO RunTerm
+ runDumbTerm h = liftIO $ posixRunTerm h (posixLayouts h) [] id evalDumb
+-                                
++
+ instance (MonadException m, MonadReader Layout m) => Term (DumbTerm m) where
+     reposition _ s = refitLine s
+-    drawLineDiff = drawLineDiff'
+-    
++    drawLineDiff x y = drawLineDiff' x y
++
+     printLines = mapM_ (printText . (++ crlf))
+     moveToNextLine _ = printText crlf
+     clearLayout = clearLayoutD
+     ringBell True = printText "\a"
+     ringBell False = return ()
+-      
++
+ printText :: MonadIO m => String -> DumbTerm m ()
+ printText str = do
+     h <- liftM ehOut ask
+@@ -109,7 +109,7 @@ refitLine (xs,ys) = do
+                         (_,[],l) -> (zs,l)
+                         (_,zs',_) -> dropFrames w zs'
+ 
+-    
++
+ clearDeadText :: Int -> String
+ clearDeadText n | n > 0 = spaces n ++ backs n
+                 | otherwise = ""
+diff --git a/System/Console/Haskeline/Backend/Terminfo.hs b/System/Console/Haskeline/Backend/Terminfo.hs
+index fb28553..e5307f5 100644
+--- a/System/Console/Haskeline/Backend/Terminfo.hs
++++ b/System/Console/Haskeline/Backend/Terminfo.hs
+@@ -28,8 +28,8 @@ import qualified Control.Monad.Trans.Writer as Writer
+ -- Low-level terminal output
+ 
+ -- | Keep track of all of the output capabilities we can use.
+--- 
+--- We'll be frequently using the (automatic) 'Monoid' instance for 
++--
++-- We'll be frequently using the (automatic) 'Monoid' instance for
+ -- @Actions -> TermOutput@.
+ data Actions = Actions {leftA, rightA, upA :: Int -> TermOutput,
+                         clearToLineEnd :: TermOutput,
+@@ -120,8 +120,8 @@ evalDraw term actions = EvalTerm eval liftE
+                             . evalStateT' initTermRows
+                             . runReaderT' term
+                             . runReaderT' actions
+-                            . unDraw 
+- 
++                            . unDraw
++
+ 
+ runTerminfoDraw :: Handles -> MaybeT IO RunTerm
+ runTerminfoDraw h = do
+@@ -169,7 +169,7 @@ terminfoKeys term = mapMaybe getSequence keyCapabilities
+                 ,(keyEnter,      simpleKey $ KeyChar '\n')
+                 ]
+ 
+-    
++
+ 
+ ----------------------------------------------------------------
+ -- Terminal output actions
+@@ -200,7 +200,7 @@ output t = Writer.tell t  -- NB: explicit argument enables build with ghc-6.12.3
+                           -- see GHC ticket #1749).
+ 
+ outputText :: String -> ActionM ()
+-outputText = output . const . termText
++outputText s = output (const (termText s))
+ 
+ left,right,up :: Int -> TermAction
+ left = flip leftA
+@@ -236,7 +236,7 @@ moveToPos p = do
+ 
+ moveRelative :: Int -> ActionM ()
+ moveRelative n = liftM3 (advancePos n) ask get get
+-                    >>= moveToPos
++                    >>= \p -> moveToPos p
+ 
+ -- Note that these move by a certain number of cells, not graphemes.
+ changeRight, changeLeft :: Int -> ActionM ()
+@@ -352,7 +352,7 @@ repositionT _ s = do
+ instance (MonadException m, MonadReader Layout m) => Term (Draw m) where
+     drawLineDiff xs ys = runActionT $ drawLineDiffT xs ys
+     reposition layout lc = runActionT $ repositionT layout lc
+-    
++
+     printLines = mapM_ $ \line -> runActionT $ do
+                                     outputText line
+                                     output nl

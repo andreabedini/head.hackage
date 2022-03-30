@@ -1,0 +1,609 @@
+diff --git a/src/Data/WideWord/Int128.hs b/src/Data/WideWord/Int128.hs
+index 0eca4ca..5739b38 100644
+--- a/src/Data/WideWord/Int128.hs
++++ b/src/Data/WideWord/Int128.hs
+@@ -48,10 +48,15 @@ import Numeric
+ import Foreign.Ptr (Ptr, castPtr)
+ import Foreign.Storable (Storable (..))
+ 
+-import GHC.Base (Int (..), and#, int2Word#, minusWord#, not#, or#, plusWord#, plusWord2#
+-                , subWordC#, timesWord#, timesWord2#, word2Int#, xor#)
++import GHC.Base (Int (..), int2Word#, minusWord#, not#, plusWord#, plusWord2#
++                , subWordC#, timesWord#, timesWord2#)
+ import GHC.Enum (predError, succError)
+-import GHC.Exts ((+#), (*#), State#, Int#, Addr#, ByteArray#, MutableByteArray#)
++import GHC.Exts ((+#), (*#), State#, Int#, Addr#, ByteArray#, MutableByteArray#, Word#)
++#if __GLASGOW_HASKELL__ >= 903
++import GHC.Exts (Word64#, and64#, or64#, word64ToInt64#, word64ToWord#, wordToWord64#, xor64#)
++#else
++import GHC.Exts (and#, or#, word2Int#, xor#)
++#endif
+ import GHC.Generics
+ import GHC.Int (Int64 (..))
+ import GHC.Real ((%))
+@@ -200,7 +205,12 @@ compare128 :: Int128 -> Int128 -> Ordering
+ compare128 (Int128 a1 a0) (Int128 b1 b0) =
+   compare (int64OfWord64 a1) (int64OfWord64 b1) <> compare a0 b0
+   where
+-    int64OfWord64 (W64# w) = I64# (word2Int# w)
++    int64OfWord64 (W64# w) =
++#if __GLASGOW_HASKELL__ >= 903
++      I64# (word64ToInt64# w)
++#else
++      I64# (word2Int# w)
++#endif
+ 
+ -- -----------------------------------------------------------------------------
+ -- Functions for `Enum` instance.
+@@ -236,36 +246,52 @@ fromEnum128 (Int128 _ a0) = fromEnum a0
+ {-# INLINABLE plus128 #-}
+ plus128 :: Int128 -> Int128 -> Int128
+ plus128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# s1) (W64# s0)
++  Int128 (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# c1, s0 #) = plusWord2# a0 b0
+-    s1a = plusWord# a1 b1
++    !(# c1, s0 #) = plusWord2# a0' b0'
++    s1a = plusWord# a1' b1'
+     s1 = plusWord# c1 s1a
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++
+ {-# INLINABLE minus128 #-}
+ minus128 :: Int128 -> Int128 -> Int128
+ minus128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# d1) (W64# d0)
++  Int128 (W64# (wordToWord64Compat# d1)) (W64# (wordToWord64Compat# d0))
+   where
+-    !(# d0, c1 #) = subWordC# a0 b0
+-    a1c = minusWord# a1 (int2Word# c1)
+-    d1 = minusWord# a1c b1
++    !(# d0, c1 #) = subWordC# a0' b0'
++    a1c = minusWord# a1' (int2Word# c1)
++    d1 = minusWord# a1c b1'
++
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
+ 
+ times128 :: Int128 -> Int128 -> Int128
+ times128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# p1) (W64# p0)
++  Int128 (W64# (wordToWord64Compat# p1)) (W64# (wordToWord64Compat# p0))
+   where
+-    !(# c1, p0 #) = timesWord2# a0 b0
+-    p1a = timesWord# a1 b0
+-    p1b = timesWord# a0 b1
++    !(# c1, p0 #) = timesWord2# a0' b0'
++    p1a = timesWord# a1' b0'
++    p1b = timesWord# a0' b1'
+     p1c = plusWord# p1a p1b
+     p1 = plusWord# p1c c1
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++
+ {-# INLINABLE negate128 #-}
+ negate128 :: Int128 -> Int128
+ negate128 (Int128 (W64# a1) (W64# a0)) =
+-  case plusWord2# (not# a0) 1## of
+-    (# c, s #) -> Int128 (W64# (plusWord# (not# a1) c)) (W64# s)
++  case plusWord2# (not# (word64ToWordCompat# a0)) 1## of
++    (# c, s #) -> Int128 (W64# (wordToWord64Compat# (plusWord# (not# (word64ToWordCompat# a1)) c)))
++                         (W64# (wordToWord64Compat# s))
+ 
+ {-# INLINABLE abs128 #-}
+ abs128 :: Int128 -> Int128
+@@ -294,17 +320,41 @@ fromInteger128 i =
+ {-# INLINABLE and128 #-}
+ and128 :: Int128 -> Int128 -> Int128
+ and128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# (and# a1 b1)) (W64# (and# a0 b0))
++  Int128 (W64# (and64Compat# a1 b1)) (W64# (and64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    and64Compat# :: Word64# -> Word64# -> Word64#
++    and64Compat# = and64#
++#else
++    and64Compat# :: Word# -> Word# -> Word#
++    and64Compat# = and#
++#endif
+ 
+ {-# INLINABLE or128 #-}
+ or128 :: Int128 -> Int128 -> Int128
+ or128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# (or# a1 b1)) (W64# (or# a0 b0))
++  Int128 (W64# (or64Compat# a1 b1)) (W64# (or64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    or64Compat# :: Word64# -> Word64# -> Word64#
++    or64Compat# = or64#
++#else
++    or64Compat# :: Word# -> Word# -> Word#
++    or64Compat# = or#
++#endif
+ 
+ {-# INLINABLE xor128 #-}
+ xor128 :: Int128 -> Int128 -> Int128
+ xor128 (Int128 (W64# a1) (W64# a0)) (Int128 (W64# b1) (W64# b0)) =
+-  Int128 (W64# (xor# a1 b1)) (W64# (xor# a0 b0))
++  Int128 (W64# (xor64Compat# a1 b1)) (W64# (xor64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    xor64Compat# :: Word64# -> Word64# -> Word64#
++    xor64Compat# = xor64#
++#else
++    xor64Compat# :: Word# -> Word# -> Word#
++    xor64Compat# = xor#
++#endif
+ 
+ -- Probably not worth inlining this.
+ shiftL128 :: Int128 -> Int -> Int128
+@@ -558,3 +608,17 @@ index1 = 0
+ index0 = 0
+ index1 = 1
+ #endif
++
++#if __GLASGOW_HASKELL__ >= 903
++word64ToWordCompat# :: Word64# -> Word#
++word64ToWordCompat# = word64ToWord#
++
++wordToWord64Compat# :: Word# -> Word64#
++wordToWord64Compat# = wordToWord64#
++#else
++word64ToWordCompat# :: Word# -> Word#
++word64ToWordCompat# x = x
++
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++#endif
+diff --git a/src/Data/WideWord/Word128.hs b/src/Data/WideWord/Word128.hs
+index 765f3a5..9dfad72 100644
+--- a/src/Data/WideWord/Word128.hs
++++ b/src/Data/WideWord/Word128.hs
+@@ -43,10 +43,15 @@ import Data.Semigroup ((<>))
+ import Foreign.Ptr (Ptr, castPtr)
+ import Foreign.Storable (Storable (..))
+ 
+-import GHC.Base (Int (..), and#, int2Word#, minusWord#, not#, or#, plusWord#, plusWord2#
+-                , quotRemWord2#, subWordC#, timesWord#, timesWord2#, xor#)
++import GHC.Base (Int (..), int2Word#, minusWord#, not#, plusWord#, plusWord2#
++                , quotRemWord2#, subWordC#, timesWord#, timesWord2#)
+ import GHC.Enum (predError, succError)
+-import GHC.Exts ((*#), (+#), Int#, State#, ByteArray#, MutableByteArray#, Addr#)
++import GHC.Exts ((*#), (+#), Int#, State#, ByteArray#, MutableByteArray#, Addr#, Word#)
++#if __GLASGOW_HASKELL__ >= 903
++import GHC.Exts (Word64#, and64#, eqWord64#, or64#, tagToEnum#, word64ToWord#, wordToWord64#, xor64#)
++#else
++import GHC.Exts (and#, or#, xor#)
++#endif
+ import GHC.Generics
+ import GHC.Real ((%), divZeroError)
+ import GHC.Word (Word64 (..), Word32, byteSwap64)
+@@ -233,40 +238,64 @@ fromEnum128 (Word128 _ a0) = fromEnum a0
+ {-# INLINABLE plus128 #-}
+ plus128 :: Word128 -> Word128 -> Word128
+ plus128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# s1) (W64# s0)
++  Word128 (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# c1, s0 #) = plusWord2# a0 b0
+-    s1a = plusWord# a1 b1
++    !(# c1, s0 #) = plusWord2# a0' b0'
++    s1a = plusWord# a1' b1'
+     s1 = plusWord# c1 s1a
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++
+ {-# INLINABLE minus128 #-}
+ minus128 :: Word128 -> Word128 -> Word128
+ minus128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# d1) (W64# d0)
++  Word128 (W64# (wordToWord64Compat# d1)) (W64# (wordToWord64Compat# d0))
+   where
+-    !(# d0, c1 #) = subWordC# a0 b0
+-    a1c = minusWord# a1 (int2Word# c1)
+-    d1 = minusWord# a1c b1
++    !(# d0, c1 #) = subWordC# a0' b0'
++    a1c = minusWord# a1' (int2Word# c1)
++    d1 = minusWord# a1c b1'
++
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
+ 
+ times128 :: Word128 -> Word128 -> Word128
+ times128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# p1) (W64# p0)
++  Word128 (W64# (wordToWord64Compat# p1)) (W64# (wordToWord64Compat# p0))
+   where
+-    !(# c1, p0 #) = timesWord2# a0 b0
+-    p1a = timesWord# a1 b0
+-    p1b = timesWord# a0 b1
++    !(# c1, p0 #) = timesWord2# a0' b0'
++    p1a = timesWord# a1' b0'
++    p1b = timesWord# a0' b1'
+     p1c = plusWord# p1a p1b
+     p1 = plusWord# p1c c1
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++
+ {-# INLINABLE negate128 #-}
+ negate128 :: Word128 -> Word128
+ negate128 (Word128 (W64# a1) (W64# a0)) =
+-  case plusWord2# (not# a0) 1## of
+-    (# c, s #) -> Word128 (W64# (plusWord# (not# a1) c)) (W64# s)
++  case plusWord2# (not# (word64ToWordCompat# a0)) 1## of
++    (# c, s #) -> Word128 (W64# (wordToWord64Compat# (plusWord# (not# (word64ToWordCompat# a1)) c)))
++                          (W64# (wordToWord64Compat# s))
+ 
+ {-# INLINABLE signum128 #-}
+ signum128 :: Word128 -> Word128
+-signum128 (Word128 (W64# 0##) (W64# 0##)) = zeroWord128
++signum128
++#if __GLASGOW_HASKELL__ >= 903
++  (Word128 (W64# a1) (W64# a0))
++  | tagToEnum# (a1 `eqWord64#` wordToWord64Compat# 0##)
++  , tagToEnum# (a0 `eqWord64#` wordToWord64Compat# 0##)
++#else
++  (Word128 (W64# 0##) (W64# 0##))
++#endif
++  = zeroWord128
+ signum128 _ = oneWord128
+ 
+ fromInteger128 :: Integer -> Word128
+@@ -279,17 +308,41 @@ fromInteger128 i =
+ {-# INLINABLE and128 #-}
+ and128 :: Word128 -> Word128 -> Word128
+ and128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# (and# a1 b1)) (W64# (and# a0 b0))
++  Word128 (W64# (and64Compat# a1 b1)) (W64# (and64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    and64Compat# :: Word64# -> Word64# -> Word64#
++    and64Compat# = and64#
++#else
++    and64Compat# :: Word# -> Word# -> Word#
++    and64Compat# = and#
++#endif
+ 
+ {-# INLINABLE or128 #-}
+ or128 :: Word128 -> Word128 -> Word128
+ or128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# (or# a1 b1)) (W64# (or# a0 b0))
++  Word128 (W64# (or64Compat# a1 b1)) (W64# (or64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    or64Compat# :: Word64# -> Word64# -> Word64#
++    or64Compat# = or64#
++#else
++    or64Compat# :: Word# -> Word# -> Word#
++    or64Compat# = or#
++#endif
+ 
+ {-# INLINABLE xor128 #-}
+ xor128 :: Word128 -> Word128 -> Word128
+ xor128 (Word128 (W64# a1) (W64# a0)) (Word128 (W64# b1) (W64# b0)) =
+-  Word128 (W64# (xor# a1 b1)) (W64# (xor# a0 b0))
++  Word128 (W64# (xor64Compat# a1 b1)) (W64# (xor64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    xor64Compat# :: Word64# -> Word64# -> Word64#
++    xor64Compat# = xor64#
++#else
++    xor64Compat# :: Word# -> Word# -> Word#
++    xor64Compat# = xor#
++#endif
+ 
+ {-# INLINABLE complement128 #-}
+ complement128 :: Word128 -> Word128
+@@ -412,12 +465,16 @@ quotRemFour num@(Word128 n1 _) den@(Word128 d1 _)
+ {-# INLINE halfTimes128 #-}
+ halfTimes128 :: Word128 -> Word64 -> Word128
+ halfTimes128 (Word128 (W64# a1) (W64# a0)) (W64# b0) =
+-  Word128 (W64# p1) (W64# p0)
++  Word128 (W64# (wordToWord64Compat# p1)) (W64# (wordToWord64Compat# p0))
+   where
+-    !(# c1, p0 #) = timesWord2# a0 b0
+-    p1a = timesWord# a1 b0
++    !(# c1, p0 #) = timesWord2# a0' b0'
++    p1a = timesWord# a1' b0'
+     p1 = plusWord# p1a c1
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !b0' = word64ToWordCompat# b0
++
+ {-# INLINE quotRemThree #-}
+ quotRemThree :: Word128 -> Word64 -> (Word128, Word128)
+ quotRemThree num@(Word128 n1 n0) den
+@@ -433,8 +490,8 @@ quotRemThree num@(Word128 n1 n0) den
+ {-# INLINE quotRemWord64 #-}
+ quotRemWord64 :: Word64 -> Word64 -> Word64 -> (Word64, Word64)
+ quotRemWord64 (W64# n1) (W64# n0) (W64# d) =
+-  case quotRemWord2# n1 n0 d of
+-    (# q, r #) -> (W64# q, W64# r)
++  case quotRemWord2# (word64ToWordCompat# n1) (word64ToWordCompat# n0) (word64ToWordCompat# d) of
++    (# q, r #) -> (W64# (wordToWord64Compat# q), W64# (wordToWord64Compat# r))
+ 
+ 
+ {-# INLINE quotRemTwo #-}
+@@ -561,3 +618,17 @@ index1 = 0
+ index0 = 0
+ index1 = 1
+ #endif
++
++#if __GLASGOW_HASKELL__ >= 903
++word64ToWordCompat# :: Word64# -> Word#
++word64ToWordCompat# = word64ToWord#
++
++wordToWord64Compat# :: Word# -> Word64#
++wordToWord64Compat# = wordToWord64#
++#else
++word64ToWordCompat# :: Word# -> Word#
++word64ToWordCompat# x = x
++
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++#endif
+diff --git a/src/Data/WideWord/Word256.hs b/src/Data/WideWord/Word256.hs
+index 92fd8ab..2512000 100644
+--- a/src/Data/WideWord/Word256.hs
++++ b/src/Data/WideWord/Word256.hs
+@@ -42,10 +42,15 @@ import Data.Semigroup ((<>))
+ import Foreign.Ptr (Ptr, castPtr)
+ import Foreign.Storable (Storable (..))
+ 
+-import GHC.Base (Int (..), and#, minusWord#, not#, or#, plusWord#, plusWord2#
+-                , subWordC#, timesWord#, timesWord2#, xor#)
++import GHC.Base (Int (..), minusWord#, not#, plusWord#, plusWord2#
++                , subWordC#, timesWord#, timesWord2#)
+ import GHC.Enum (predError, succError)
+-import GHC.Exts ((*#), (+#), Int#, State#, ByteArray#, MutableByteArray#, Addr#)
++import GHC.Exts ((*#), (+#), Int#, State#, ByteArray#, MutableByteArray#, Addr#, Word#)
++#if __GLASGOW_HASKELL__ >= 903
++import GHC.Exts (Word64#, and64#, eqWord64#, or64#, tagToEnum#, word64ToWord#, wordToWord64#, xor64#)
++#else
++import GHC.Exts (and#, or#, xor#)
++#endif
+ import GHC.Generics
+ import GHC.Real ((%))
+ import GHC.Word (Word64 (..), Word32)
+@@ -250,58 +255,79 @@ fromEnum256 (Word256 _ _ _ a0) = fromEnum a0
+ plus256 :: Word256 -> Word256 -> Word256
+ plus256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+         (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# s3) (W64# s2) (W64# s1) (W64# s0)
++  Word256 (W64# (wordToWord64Compat# s3)) (W64# (wordToWord64Compat# s2))
++          (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# c1, s0 #) = plusWord2# a0 b0
+-    !(# c2a, s1a #) = plusWord2# a1 b1
++    !(# c1, s0 #) = plusWord2# a0' b0'
++    !(# c2a, s1a #) = plusWord2# a1' b1'
+     !(# c2b, s1 #) = plusWord2# s1a c1
+     c2 = plusWord# c2a c2b
+-    !(# c3a, s2a #) = plusWord2# a2 b2
++    !(# c3a, s2a #) = plusWord2# a2' b2'
+     !(# c3b, s2 #) = plusWord2# s2a c2
+     c3 = plusWord# c3a c3b
+-    s3 = plusWord# a3 (plusWord# b3 c3)
++    s3 = plusWord# a3' (plusWord# b3' c3)
++
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !a2' = word64ToWordCompat# a2
++    !a3' = word64ToWordCompat# a3
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++    !b2' = word64ToWordCompat# b2
++    !b3' = word64ToWordCompat# b3
+ 
+ {-# INLINABLE minus256 #-}
+ minus256 :: Word256 -> Word256 -> Word256
+ minus256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+          (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# s3) (W64# s2) (W64# s1) (W64# s0)
++  Word256 (W64# (wordToWord64Compat# s3)) (W64# (wordToWord64Compat# s2))
++          (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+   where
+-    !(# s0, v1 #) = subWordC# a0 b0
++    !(# s0, v1 #) = subWordC# a0' b0'
+     !(# s1, v2 #) =
+       case v1 of
+-        0# -> subWordC# a1 b1
++        0# -> subWordC# a1' b1'
+         _ ->
+-          case a1 of
+-            0## -> (# minusWord# 0xFFFFFFFFFFFFFFFF## b1, 1# #)
+-            _ -> subWordC# (minusWord# a1 1##) b1
++          case a1' of
++            0## -> (# minusWord# 0xFFFFFFFFFFFFFFFF## b1', 1# #)
++            _ -> subWordC# (minusWord# a1' 1##) b1'
+     !(# s2, v3 #) =
+       case v2 of
+-        0# -> subWordC# a2 b2
++        0# -> subWordC# a2' b2'
+         _ ->
+-          case a2 of
+-            0## -> (# minusWord# 0xFFFFFFFFFFFFFFFF## b2, 1# #)
+-            _ -> subWordC# (minusWord# a2 1##) b2
++          case a2' of
++            0## -> (# minusWord# 0xFFFFFFFFFFFFFFFF## b2', 1# #)
++            _ -> subWordC# (minusWord# a2' 1##) b2'
+     !s3 =
+       case v3 of
+-        0# -> minusWord# a3 b3
+-        _ -> minusWord# (minusWord# a3 1##) b3
++        0# -> minusWord# a3' b3'
++        _ -> minusWord# (minusWord# a3' 1##) b3'
++
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !a2' = word64ToWordCompat# a2
++    !a3' = word64ToWordCompat# a3
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++    !b2' = word64ToWordCompat# b2
++    !b3' = word64ToWordCompat# b3
+ 
+ times256 :: Word256 -> Word256 -> Word256
+ times256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+          (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# r3) (W64# r2) (W64# r1) (W64# r0)
++  Word256 (W64# (wordToWord64Compat# r3)) (W64# (wordToWord64Compat# r2))
++          (W64# (wordToWord64Compat# r1)) (W64# (wordToWord64Compat# r0))
+   where
+-    !(# c00, p00 #) = timesWord2# a0 b0
+-    !(# c01, p01 #) = timesWord2# a0 b1
+-    !(# c02, p02 #) = timesWord2# a0 b2
+-    !p03 = timesWord# a0 b3
+-    !(# c10, p10 #) = timesWord2# a1 b0
+-    !(# c11, p11 #) = timesWord2# a1 b1
+-    !p12 = timesWord# a1 b2
+-    !(# c20, p20 #) = timesWord2# a2 b0
+-    !p21 = timesWord# a2 b1
+-    !p30 = timesWord# a3 b0
++    !(# c00, p00 #) = timesWord2# a0' b0'
++    !(# c01, p01 #) = timesWord2# a0' b1'
++    !(# c02, p02 #) = timesWord2# a0' b2'
++    !p03 = timesWord# a0' b3'
++    !(# c10, p10 #) = timesWord2# a1' b0'
++    !(# c11, p11 #) = timesWord2# a1' b1'
++    !p12 = timesWord# a1' b2'
++    !(# c20, p20 #) = timesWord2# a2' b0'
++    !p21 = timesWord# a2' b1'
++    !p30 = timesWord# a3' b0'
+     !r0 = p00
+     !c1 = c00
+     !(# c2x, r1a #) = plusWord2# p01 p10
+@@ -320,18 +346,38 @@ times256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+          c3t `plusWord#` c02 `plusWord#` c11 `plusWord#`
+          c20
+ 
++    !a0' = word64ToWordCompat# a0
++    !a1' = word64ToWordCompat# a1
++    !a2' = word64ToWordCompat# a2
++    !a3' = word64ToWordCompat# a3
++    !b0' = word64ToWordCompat# b0
++    !b1' = word64ToWordCompat# b1
++    !b2' = word64ToWordCompat# b2
++    !b3' = word64ToWordCompat# b3
++
+ {-# INLINABLE negate256 #-}
+ negate256 :: Word256 -> Word256
+ negate256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0)) =
+-  case plusWord2# (not# a0) 1## of
+-    (# c1, s0 #) -> case plusWord2# (not# a1) c1 of
+-      (# c2, s1 #) -> case plusWord2# (not# a2) c2 of
+-        (# c3, s2 #) -> case plusWord# (not# a3) c3 of
+-          s3 -> Word256 (W64# s3) (W64# s2) (W64# s1) (W64# s0)
++  case plusWord2# (not# (word64ToWordCompat# a0)) 1## of
++    (# c1, s0 #) -> case plusWord2# (not# (word64ToWordCompat# a1)) c1 of
++      (# c2, s1 #) -> case plusWord2# (not# (word64ToWordCompat# a2)) c2 of
++        (# c3, s2 #) -> case plusWord# (not# (word64ToWordCompat# a3)) c3 of
++          s3 -> Word256 (W64# (wordToWord64Compat# s3)) (W64# (wordToWord64Compat# s2))
++                        (W64# (wordToWord64Compat# s1)) (W64# (wordToWord64Compat# s0))
+ 
+ {-# INLINABLE signum256 #-}
+ signum256 :: Word256 -> Word256
+-signum256 (Word256 (W64# 0##) (W64# 0##) (W64# 0##) (W64# 0##)) = zeroWord256
++signum256
++#if __GLASGOW_HASKELL__ >= 903
++  (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
++  | tagToEnum# (a3 `eqWord64#` wordToWord64Compat# 0##)
++  , tagToEnum# (a2 `eqWord64#` wordToWord64Compat# 0##)
++  , tagToEnum# (a1 `eqWord64#` wordToWord64Compat# 0##)
++  , tagToEnum# (a0 `eqWord64#` wordToWord64Compat# 0##)
++#else
++  (Word256 (W64# 0##) (W64# 0##) (W64# 0##) (W64# 0##))
++#endif
++  = zeroWord256
+ signum256 _ = oneWord256
+ 
+ fromInteger256 :: Integer -> Word256
+@@ -348,22 +394,46 @@ fromInteger256 i = Word256
+ and256 :: Word256 -> Word256 -> Word256
+ and256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+        (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# (and# a3 b3)) (W64# (and# a2 b2))
+-          (W64# (and# a1 b1)) (W64# (and# a0 b0))
++  Word256 (W64# (and64Compat# a3 b3)) (W64# (and64Compat# a2 b2))
++          (W64# (and64Compat# a1 b1)) (W64# (and64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    and64Compat# :: Word64# -> Word64# -> Word64#
++    and64Compat# = and64#
++#else
++    and64Compat# :: Word# -> Word# -> Word#
++    and64Compat# = and#
++#endif
+ 
+ {-# INLINABLE or256 #-}
+ or256 :: Word256 -> Word256 -> Word256
+ or256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+       (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# (or# a3 b3)) (W64# (or# a2 b2))
+-          (W64# (or# a1 b1)) (W64# (or# a0 b0))
++  Word256 (W64# (or64Compat# a3 b3)) (W64# (or64Compat# a2 b2))
++          (W64# (or64Compat# a1 b1)) (W64# (or64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    or64Compat# :: Word64# -> Word64# -> Word64#
++    or64Compat# = or64#
++#else
++    or64Compat# :: Word# -> Word# -> Word#
++    or64Compat# = or#
++#endif
+ 
+ {-# INLINABLE xor256 #-}
+ xor256 :: Word256 -> Word256 -> Word256
+ xor256 (Word256 (W64# a3) (W64# a2) (W64# a1) (W64# a0))
+        (Word256 (W64# b3) (W64# b2) (W64# b1) (W64# b0)) =
+-  Word256 (W64# (xor# a3 b3)) (W64# (xor# a2 b2))
+-          (W64# (xor# a1 b1)) (W64# (xor# a0 b0))
++  Word256 (W64# (xor64Compat# a3 b3)) (W64# (xor64Compat# a2 b2))
++          (W64# (xor64Compat# a1 b1)) (W64# (xor64Compat# a0 b0))
++  where
++#if __GLASGOW_HASKELL__ >= 903
++    xor64Compat# :: Word64# -> Word64# -> Word64#
++    xor64Compat# = xor64#
++#else
++    xor64Compat# :: Word# -> Word# -> Word#
++    xor64Compat# = xor#
++#endif
+ 
+ {-# INLINABLE complement256 #-}
+ complement256 :: Word256 -> Word256
+@@ -641,3 +711,17 @@ index1 = 1
+ index2 = 2
+ index3 = 3
+ #endif
++
++#if __GLASGOW_HASKELL__ >= 903
++word64ToWordCompat# :: Word64# -> Word#
++word64ToWordCompat# = word64ToWord#
++
++wordToWord64Compat# :: Word# -> Word64#
++wordToWord64Compat# = wordToWord64#
++#else
++word64ToWordCompat# :: Word# -> Word#
++word64ToWordCompat# x = x
++
++wordToWord64Compat# :: Word# -> Word#
++wordToWord64Compat# x = x
++#endif

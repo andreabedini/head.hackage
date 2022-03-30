@@ -1,0 +1,23 @@
+diff --git a/src/Control/Monad/Plus.hs b/src/Control/Monad/Plus.hs
+index 0728fb7..e64389b 100644
+--- a/src/Control/Monad/Plus.hs
++++ b/src/Control/Monad/Plus.hs
+@@ -1,5 +1,5 @@
+ 
+-{-# LANGUAGE DeriveFunctor, DeriveFoldable, GeneralizedNewtypeDeriving #-}
++{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, GeneralizedNewtypeDeriving #-}
+ 
+ -------------------------------------------------------------------------------------
+ -- |
+@@ -255,6 +255,9 @@ instance Alternative (Partial r) where
+ 
+ instance Monoid (Partial a b) where
+     mempty  = mzero
++#if !MIN_VERSION_base(4,11,0)
+     mappend = mplus
+-
+-
++#else
++instance Semigroup (Partial a b) where
++  (<>) = mappend
++#endif
