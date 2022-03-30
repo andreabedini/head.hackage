@@ -1,0 +1,37 @@
+name: Publish repository
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v2
+
+      - name: Setup foliage
+        run: |
+          mkdir $HOME/bin
+          curl -L -o $HOME/bin/foliage https://github.com/andreabedini/foliage/releases/latest/download/foliage-Linux
+          chmod a+x $HOME/bin/foliage
+          echo $HOME/bin >> $GITHUB_PATH
+
+      - name: Unpack keys
+        env:
+          KEYS: ${{ secrets.KEYS }}
+        run: |
+          mkdir _keys
+          echo "$KEYS" | base64 -d | tar xvz -C _keys
+
+      - name: Build repository
+        run: foliage build
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4.2.2
+        with:
+          branch: gh-pages
+          folder: _repo
