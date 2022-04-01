@@ -28,7 +28,9 @@ jobs:
           echo "$KEYS" | base64 -d | tar xvz -C _keys
 
       - name: Build repository
-        run: foliage build
+        run: |
+          foliage build
+          touch _repo/.nojekyll
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4.2.2
